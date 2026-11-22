@@ -26,3 +26,5 @@ Approved scope: retain native account/Keychain authority on the coordinator whil
 Latest source gate: 40 changed checks passed in 65 seconds; all four TypeScript projects and reference identity/moved-home refusal tests pass. Private Mini runtime rebuilt as `0.1.0+f5417c42101f`, GUI service restarted, all seven account references still return fresh usage. Live gateway proof remains in progress; do not equate the source gate with an end-to-end factory pass.
 
 Runtime `0.1.0+2abf99c6fa6e` passed a real restricted gateway command in a disposable remote container (Linux, UID 1000, nonce read from the bundled repository, host-home absence, no network route). The launch receipt bound the selected model/account and gateway hash. Worker and coordinator cleanup were confirmed. A factory completion-message field still needs correction before claiming a full factory-stage pass; that bridge fix is outside this repository.
+
+Companion bridge retry now passes the full native lifecycle as well: actual tool command, captured result, worker completion/release, coordinator close, and sandbox removal. All proof workers are exited. Full Fieldbook/product gates remain separate.
