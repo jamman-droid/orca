@@ -106,7 +106,7 @@ type ClaudeExitHandler = NonNullable<ClaudeStreamJsonConnectionHandlers['onExit'
  *  never does, whatever Claude reports, and no other process's launch or reports carry over. */
 export function claudeLaunchPermissions(
   deps: Omit<ClaudePermissionCallbackDeps, 'fullAccessAt'>,
-  launch: Pick<ClaudeStructuredLaunch, 'options' | 'providerSessionId'>
+  launch: Pick<ClaudeStructuredLaunch, 'options' | 'providerSessionId' | 'factoryPolicy'>
 ): {
   handlers: Pick<ClaudeStreamJsonConnectionHandlers, 'canUseTool' | 'onUserDialog' | 'onStdout'>
   /** Claude's mode in wire order; null without Full access, whose launches read no stdout. */
@@ -114,6 +114,22 @@ export function claudeLaunchPermissions(
   /** Wraps the connection's exit handler: this process's permission state ends first. */
   closeThen: (onExit: ClaudeExitHandler) => ClaudeExitHandler
 } {
+  if (launch.factoryPolicy) {
+    return {
+      handlers: {
+        canUseTool: async (name, input) =>
+          name.startsWith('mcp__factory__')
+            ? { behavior: 'allow', updatedInput: input }
+            : {
+                behavior: 'deny',
+                message: 'Restricted factory sessions can only use their job gateway.'
+              },
+        onUserDialog: async () => ({ behavior: 'cancelled' })
+      },
+      orderedMode: null,
+      closeThen: (onExit) => onExit
+    }
+  }
   const policy = claudeLaunchSkipsPermissions(launch.options)
     ? createClaudeFullAccessPolicy(launch.providerSessionId)
     : null

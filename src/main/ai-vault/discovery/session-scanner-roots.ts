@@ -1,4 +1,3 @@
-import { claudeProfileHistoryDirs } from '../../claude-accounts/profiles/routing/claude-profile-installed-router'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { resolveAbsoluteDirOverride } from '../../../shared/file-access/absolute-dir-override'
@@ -45,7 +44,7 @@ export function claudeProjectsRootDirs(args: {
   return uniqueDirs([
     ...(args.claudeProjectsDir ? [args.claudeProjectsDir] : claudeProjectsHostDirs()),
     ...wslHomeSessionDirs('claude', args.wslHomeDirs ?? []),
-    ...(args.claudeProfileProjectsDirs ?? claudeProfileHistoryDirs('projects'))
+    ...(args.claudeProfileProjectsDirs ?? [])
   ])
 }
 

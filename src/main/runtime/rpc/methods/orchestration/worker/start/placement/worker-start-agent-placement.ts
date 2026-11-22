@@ -241,6 +241,10 @@ function launchedWorkerReceipt(
   if (session.accountId && receipt.effective) {
     receipt.effective.accountId = session.accountId
   }
+  if (session.factoryConfigSha256 && receipt.effective) {
+    receipt.effective.factoryPolicy = 'gateway-only-v1'
+    receipt.effective.factoryConfigSha256 = session.factoryConfigSha256
+  }
   recordWorkerLaunchObservation(args.db, args.dispatchId, receipt)
   return receipt
 }
@@ -269,6 +273,7 @@ function workerSurfaceFactory(
         agent,
         dispatchId: args.dispatchId,
         accountId: args.params.accountId,
+        factoryMcpConfig: args.params.factoryMcpConfig,
         ...(args.launch.preferences ? { launchPreferences: args.launch.preferences } : {}),
         effects: args.effects
       })

@@ -20,5 +20,5 @@ export async function resolveFactoryWorkerAccountPin(
   ) {
     throw new Error('The reserved worker account home changed; a new reservation is required.')
   }
-  return prepared
+  return { ...prepared, ...(home.factoryPolicy ? { factoryPolicy: home.factoryPolicy } : {}) }
 }

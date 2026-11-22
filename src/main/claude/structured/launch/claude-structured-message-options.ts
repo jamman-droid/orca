@@ -24,7 +24,11 @@ import {
   neverThrowingStructuredAgentSessionLogger,
   type StructuredAgentSessionLogger
 } from '../../../native-chat/agent-session-wire/host/structured-agent-session-logger'
-import { claudeTakesFlagSettings, setClaudeStructuredOption } from './claude-structured-options'
+import {
+  assertFactoryClaudeOptions,
+  claudeTakesFlagSettings,
+  setClaudeStructuredOption
+} from './claude-structured-options'
 import type { ClaudeSession } from '../claude-structured-session-state'
 import {
   isAbortSignalReason,
@@ -41,6 +45,7 @@ export async function applyClaudeMessageOptions(
   signal?: AbortSignal
 ): Promise<void> {
   throwIfSignalAborted(signal)
+  assertFactoryClaudeOptions(session, options)
   const model = options.model
   // Claude owns the model after a refusal fallback until a pick, which is sent even if unchanged.
   const fallback = session.modelFallback
@@ -78,6 +83,9 @@ export async function applyClaudeMessageOptions(
     )
   }
   throwIfSignalAborted(signal)
+  if (session.launchIntent?.factoryPolicy) {
+    return
+  }
   if (options.interactionMode !== undefined) {
     if (options.interactionMode === 'plan') {
       claimClaudePermissionModeRequest(session)

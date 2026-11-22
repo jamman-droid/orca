@@ -1,4 +1,8 @@
 import {
+  FACTORY_CLAUDE_ENV,
+  factoryClaudeEnvironment
+} from '../structured/launch/factory-claude-environment'
+import {
   CLAUDE_AUTH_ENV_VARS,
   applyClaudeEnvPatch
 } from '../../claude-accounts/runtime-auth/environment'
@@ -41,6 +45,9 @@ export function buildClaudeChildProcessEnv(
     platform?: NodeJS.Platform
   } = {}
 ): Record<string, string> {
+  if (configuredEnv[FACTORY_CLAUDE_ENV] === '1') {
+    return factoryClaudeEnvironment(configuredEnv)
+  }
   const inheritedEnv = options.inheritedEnv ?? process.env
   const platform = options.platform ?? process.platform
   const env = applyClaudeEnvPatch(

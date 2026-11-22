@@ -36,8 +36,8 @@ import { wslTranscriptFsRefusal } from './transcript-filesystem/wsl-transcript-f
 import type { WslTranscriptFsError } from './transcript-filesystem/wsl-transcript-fs-error'
 
 // Read shared discovery roots per call; preference order prevents cross-account matches.
-function claudeProjectsDirs(): string[] {
-  return uniqueDirs([...claudeProjectsHostDirs(), ...claudeProfileHistoryDirs('projects')])
+async function claudeProjectsDirs(): Promise<string[]> {
+  return uniqueDirs([...claudeProjectsHostDirs(), ...(await claudeProfileHistoryDirs('projects'))])
 }
 
 // Search managed Codex before user homes; use the path-only getter to avoid launch-time mkdirSync on polls.
@@ -159,7 +159,7 @@ async function resolveSessionFileById(
   // Explicit roots pin an account; fallback could silently read another account’s transcript.
   if (transcriptAgent === 'claude') {
     const override = options.claudeProjectsDir
-    return resolveTiered('claude', trimmedId, override ? [override] : claudeProjectsDirs(), {
+    return resolveTiered('claude', trimmedId, override ? [override] : await claudeProjectsDirs(), {
       wslTier: wslTier && !override,
       cwd: options.cwd,
       signal,

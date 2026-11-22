@@ -24,9 +24,9 @@ afterEach(() => {
 describe('Claude config directory Keychain aliases', () => {
   it.each([{ segments: ['.claude'] }, { segments: ['removed', '.claude'] }])(
     'resolves a missing config below a symlinked ancestor without creating it ($segments)',
-    ({ segments }) => {
+    async ({ segments }) => {
       const configDir = join(linked, ...segments)
-      expect(claudeConfigDirKeychainAliases(configDir)).toEqual([
+      expect(await claudeConfigDirKeychainAliases(configDir)).toEqual([
         configDir,
         join(canonical, ...segments)
       ])
@@ -35,20 +35,23 @@ describe('Claude config directory Keychain aliases', () => {
     }
   )
 
-  it('keeps a missing path with parent traversal raw instead of guessing through a symlink', () => {
+  it('keeps a missing path with parent traversal raw instead of guessing through a symlink', async () => {
     const child = join(canonical, 'child')
     const childLink = join(directory, 'child-link')
     mkdirSync(child)
     symlinkSync(child, childLink, process.platform === 'win32' ? 'junction' : 'dir')
     const configDir = [childLink, '..', '.claude'].join(sep)
 
-    expect(claudeConfigDirKeychainAliases(configDir)).toEqual([configDir])
+    expect(await claudeConfigDirKeychainAliases(configDir)).toEqual([configDir])
     expect(existsSync(join(canonical, '.claude'))).toBe(false)
   })
 
-  it.skipIf(process.platform === 'win32')('does not invent an alias for a broken symlink', () => {
-    const configDir = join(linked, '.claude')
-    symlinkSync(join(directory, 'missing-target'), configDir, 'dir')
-    expect(claudeConfigDirKeychainAliases(configDir)).toEqual([configDir])
-  })
+  it.skipIf(process.platform === 'win32')(
+    'does not invent an alias for a broken symlink',
+    async () => {
+      const configDir = join(linked, '.claude')
+      symlinkSync(join(directory, 'missing-target'), configDir, 'dir')
+      expect(await claudeConfigDirKeychainAliases(configDir)).toEqual([configDir])
+    }
+  )
 })

@@ -1,3 +1,4 @@
+import { claudeProfileHistoryDirs } from '../../claude-accounts/profiles/routing/claude-profile-installed-router'
 import { resolve } from 'node:path'
 import { getAiVaultWslHomeDirs } from '../../ai-vault/discovery/ai-vault-scan-roots'
 import { listAiVaultSubagentSessionsInBackground } from '../../ai-vault/scan-service/session-scanner-background'
@@ -32,7 +33,10 @@ export async function listAiVaultSubagentSessions(
   const wslHomeDirs = await getAiVaultWslHomeDirs()
   const roots =
     args.agent === 'claude'
-      ? claudeProjectsRootDirs({ wslHomeDirs })
+      ? claudeProjectsRootDirs({
+          wslHomeDirs,
+          claudeProfileProjectsDirs: await claudeProfileHistoryDirs('projects')
+        })
       : sessionRowRootDirs('omp', {}, wslHomeDirs)
   if (!roots.some((root) => isPathInsideOrEqual(resolve(root), parentFilePath))) {
     return { sessions: [], issues: [] }

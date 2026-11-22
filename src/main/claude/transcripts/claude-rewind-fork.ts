@@ -146,7 +146,7 @@ export const claudeForkForRewind: NonNullable<
     destinationConfigDir: requireLegacyAgentSessionAccountHome(record.accountHome).path,
     claudeConfigDirs: [
       requireLegacyAgentSessionAccountHome(record.accountHome).path,
-      ...(router ? [...router.accountHomes(), router.systemDefaultHome()] : [])
+      ...(router ? [...(await router.accountHomes()), router.systemDefaultHome()] : [])
     ]
   })
   return fork ? { ok: true, fork } : { ok: false, reason: 'invalid-target' }

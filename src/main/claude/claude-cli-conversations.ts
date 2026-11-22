@@ -12,10 +12,10 @@ import {
 
 const CLAUDE_TRANSCRIPT_IMPORT = directoryTranscriptImport({
   conversationStore: ({ accountHomePath }) => join(accountHomePath, 'projects'),
-  accountHomeCandidates: ({ selectedAccountHomePath }) => [
+  accountHomeCandidates: async ({ selectedAccountHomePath }) => [
     selectedAccountHomePath,
     join(homedir(), '.claude'),
-    ...(getClaudeProfileRouter()?.accountHomes() ?? [])
+    ...((await getClaudeProfileRouter()?.accountHomes()) ?? [])
   ],
   findTranscript: ({ providerSessionId, store, workspaceCwd, strictErrors }) =>
     resolveSessionFilePath('claude', providerSessionId, {

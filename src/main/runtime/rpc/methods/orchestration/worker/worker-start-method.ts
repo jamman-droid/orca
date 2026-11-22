@@ -1,3 +1,4 @@
+import { assertFactoryWorkerStart } from './start/launch/factory-worker-start-validation'
 import { stopHelperAfterStart } from './worker-stop'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
 import type { z } from 'zod'
@@ -66,6 +67,7 @@ export async function startWorker(
   ctx: WorkerStartContext,
   startFollowUp?: WorkerFollowUp
 ): Promise<unknown> {
+  assertFactoryWorkerStart(startParams, Boolean(startFollowUp))
   if (startParams.accountId && startParams.on) {
     throw new OrchestrationError(
       'invalid_argument',

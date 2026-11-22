@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { lstatSync, realpathSync } from 'node:fs'
+import { lstat, realpath } from 'node:fs/promises'
 import { userInfo } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { readKeychainPassword } from '../../macos-keychain/generic-password'
@@ -12,7 +12,7 @@ export async function readActiveClaudeKeychainCredentialsStrict(
     return readKeychainPassword(claudeKeychainService(), getKeychainUser())
   }
   // Profile aliases must never fall back to System default credentials.
-  for (const dir of claudeConfigDirKeychainAliases(configDir)) {
+  for (const dir of await claudeConfigDirKeychainAliases(configDir)) {
     const credentials = await readKeychainPassword(claudeKeychainService(dir), getKeychainUser())
     if (credentials) {
       return credentials
@@ -44,13 +44,13 @@ export function claudeKeychainService(configDir?: string): string {
   return `${ACTIVE_CLAUDE_SERVICE}-${suffix}`
 }
 
-export function claudeConfigDirKeychainAliases(configDir: string): string[] {
+export async function claudeConfigDirKeychainAliases(configDir: string): Promise<string[]> {
   const aliases = [configDir]
   const missingSegments: string[] = []
   let existingPath = configDir
   while (true) {
     try {
-      const canonical = join(realpathSync(existingPath), ...missingSegments)
+      const canonical = join(await realpath(existingPath), ...missingSegments)
       if (canonical !== configDir) {
         aliases.push(canonical)
       }
@@ -67,7 +67,7 @@ export function claudeConfigDirKeychainAliases(configDir: string): string[] {
       }
       try {
         // A broken symlink has no known canonical target; do not guess its alias.
-        lstatSync(existingPath)
+        await lstat(existingPath)
         break
       } catch (missingError) {
         if (
@@ -91,9 +91,12 @@ export function claudeConfigDirKeychainAliases(configDir: string): string[] {
 }
 
 /** Include literal home-variable spellings Claude may have hashed into Keychain names. */
-export function claudeConfigDirSpellings(configDir: string, userHome: string): string[] {
+export async function claudeConfigDirSpellings(
+  configDir: string,
+  userHome: string
+): Promise<string[]> {
   const spellings = new Set<string>()
-  for (const dir of claudeConfigDirKeychainAliases(configDir)) {
+  for (const dir of await claudeConfigDirKeychainAliases(configDir)) {
     const trimmed = dir.replace(/[\\/]+$/, '')
     const rest = trimmed.startsWith(`${userHome}/`) ? trimmed.slice(userHome.length) : null
     for (const spelling of [trimmed, ...(rest ? [`~${rest}`, `$HOME${rest}`] : [])]) {

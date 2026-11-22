@@ -118,6 +118,9 @@ async function readClaudeKeychainCredentials(
 export async function readClaudeOAuthCredentials(
   options?: ClaudeOAuthCredentialReadOptions
 ): Promise<ClaudeOAuthCredentialReadResult> {
+  if (options?.keychainConfigDir) {
+    await getClaudeProfileRouter()?.validateReferenceHome?.(options.keychainConfigDir)
+  }
   const keychain =
     process.platform === 'darwin'
       ? await readClaudeKeychainCredentials(options)

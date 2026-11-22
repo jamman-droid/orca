@@ -1,3 +1,4 @@
+import { createFactoryClaudePolicy } from '../../../../../claude/structured/launch/factory-claude-policy'
 import { isLegacyAgentSessionAccountHome } from '../../../../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
 import {
   closeStructuredAgentSessionChild,
@@ -101,10 +102,12 @@ export async function createStructuredWorkerSession(args: {
   agent: TuiAgent
   dispatchId: string
   accountId?: string
+  factoryMcpConfig?: string
   /** The dispatch's own `--model`/`--effort`, already narrowed to the seedable string subset. */
   options?: Readonly<Record<string, string>>
 }): Promise<{
   identity: StructuredWorkerIdentity
+  factoryConfigSha256?: string
   accountId?: string
   host: StructuredAgentSessionHost
   /** The lease the create was admitted at. */
@@ -112,6 +115,20 @@ export async function createStructuredWorkerSession(args: {
   /** The provider options the session launches with: the dispatch's own over the seeded saved selection, or in its place for a leveled Antigravity model. */
   options?: Readonly<Record<string, string>>
 }> {
+  const accountHome = args.accountId
+    ? await args.runtime.resolveFactoryWorkerAccountHome(args.agent, args.accountId)
+    : undefined
+  if (args.factoryMcpConfig) {
+    if (args.agent !== 'claude' || !accountHome || !isLegacyAgentSessionAccountHome(accountHome)) {
+      throw new Error('Factory isolation requires a pinned Claude account.')
+    }
+    const workspace = await args.runtime.showTerminalWorkspaceLaunchScope(`id:${args.worktreeId}`)
+    accountHome.factoryPolicy = await createFactoryClaudePolicy(
+      args.factoryMcpConfig,
+      workspace.path,
+      args.options
+    )
+  }
   const sessionId = randomUUID()
   // Register before attach builds child env or missing ORCA_TERMINAL_HANDLE can misroute orchestration to the coordinator.
   // Assert the provisional local scope against the created record; discard non-local sessions.
@@ -142,17 +159,11 @@ export async function createStructuredWorkerSession(args: {
       },
       worktree: `id:${args.worktreeId}`,
       agent: args.agent,
-      ...(args.accountId
-        ? {
-            accountHome: await args.runtime.resolveFactoryWorkerAccountHome(
-              args.agent,
-              args.accountId
-            )
-          }
-        : {}),
+      ...(accountHome ? { accountHome } : {}),
       // Absent, the host seeds the user's saved selection — the same fallback a chat gets.
       ...(args.options ? { options: args.options } : {}),
-      ...(structuredWorkerModelReplacesSavedSelection(args.agent, args.options?.model)
+      ...(args.factoryMcpConfig ||
+      structuredWorkerModelReplacesSavedSelection(args.agent, args.options?.model)
         ? { optionsMode: 'replace-model-selection' as const }
         : {}),
       // Dispatching a worker is background work; it must not pull the surface away from the user.
@@ -179,6 +190,9 @@ export async function createStructuredWorkerSession(args: {
       host,
       fence: created.value.fence,
       options: record.options,
+      ...(isLegacyAgentSessionAccountHome(record.accountHome) && record.accountHome.factoryPolicy
+        ? { factoryConfigSha256: record.accountHome.factoryPolicy.configSha256 }
+        : {}),
       ...(isLegacyAgentSessionAccountHome(record.accountHome) && record.accountHome.factoryAccountId
         ? { accountId: record.accountHome.factoryAccountId }
         : {})

@@ -166,7 +166,7 @@ async function claudeProjectsSources(args: {
   if (hostRoots.length > 0) {
     for (const projectsDir of new Set([
       getClaudeProjectsDir(args.home ?? homedir(), args.env ?? process.env),
-      ...claudeProfileHistoryDirs('projects')
+      ...(await claudeProfileHistoryDirs('projects'))
     ])) {
       sources.push(claudeProjectsSource(projectsDir, hostRoots))
     }

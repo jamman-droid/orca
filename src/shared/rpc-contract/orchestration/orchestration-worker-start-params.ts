@@ -29,6 +29,7 @@ export const WorkerStartParams = z
     terminal: OptionalString,
     agent: OptionalString,
     accountId: OptionalWorkerLaunchPreference,
+    factoryMcpConfig: z.string().min(1).max(4096).optional(),
     model: OptionalWorkerLaunchPreference,
     effort: OptionalWorkerLaunchPreference,
     retryOf: OptionalString,

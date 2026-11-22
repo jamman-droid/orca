@@ -1,3 +1,5 @@
+import { installClaudeProfileRouter } from './routing/claude-profile-installed-router'
+import { readClaudeOAuthCredentials } from '../../rate-limits/providers/claude/claude-oauth-credentials'
 import { createEmptyRateLimitState } from '../../../shared/agent-usage/rate-limits/rate-limit-state-factory'
 import {
   mkdtempSync,
@@ -6,6 +8,8 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  renameSync,
+  symlinkSync,
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -24,7 +28,10 @@ vi.mock('../../macos-keychain/generic-password', () => ({
 }))
 
 const roots: string[] = []
-afterEach(() => roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true })))
+afterEach(() => {
+  installClaudeProfileRouter(undefined)
+  roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true }))
+})
 
 function fixture(credentials = true) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'claude-reference-')))
@@ -116,5 +123,27 @@ it('refuses metadata-only profiles and fails closed if the referenced identity c
     join(f.home, '.claude.json'),
     '{"oauthAccount":{"emailAddress":"other@example.test","organizationUuid":"other"}}'
   )
-  expect(() => f.router.accountHome(state.accounts[0]!.id)).toThrow('identity changed')
+  await expect(f.router.prepareAccount(state.accounts[0]!.id)).rejects.toThrow('identity changed')
+  expect(() => f.router.accountUsagePreparation(state.accounts[0]!.id)).toThrow('identity changed')
+  expect(await f.router.accountHomes()).not.toContain(f.home)
+  installClaudeProfileRouter(f.router)
+  await expect(
+    readClaudeOAuthCredentials({ keychainConfigDir: f.home, credentialsFileConfigDir: f.home })
+  ).rejects.toThrow('identity changed')
 })
+
+it.skipIf(process.platform === 'win32')(
+  'rejects a replaced reference path before launch or quota credentials are read',
+  async () => {
+    const f = fixture()
+    const state = await f.registration.reference(f.home)
+    renameSync(f.home, `${f.home}-moved`)
+    symlinkSync(`${f.home}-moved`, f.home, 'dir')
+    installClaudeProfileRouter(f.router)
+    await expect(f.router.prepareAccount(state.accounts[0]!.id)).rejects.toThrow('moved')
+    await expect(
+      readClaudeOAuthCredentials({ keychainConfigDir: f.home, credentialsFileConfigDir: f.home })
+    ).rejects.toThrow('moved')
+    expect(await f.router.accountHomes()).not.toContain(f.home)
+  }
+)

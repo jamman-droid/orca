@@ -22,6 +22,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'repo',
       'base-branch',
       'account-id',
+      'factory-mcp-config',
       'display-name',
       'comment',
       'setup',
@@ -39,6 +40,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     ],
     identityFlagRoles: { from: 'caller', terminal: 'target' },
     notes: [
+      '--factory-mcp-config requires a pinned Claude account, exact model, and an existing empty folder workspace. Only its loopback factory MCP gateway is available; native tools and normal customizations are disabled.',
       "--item <n> (from a bot's own chat) links the worker to that item and moves it to In progress.",
       '--for <message id> links the worker to a question you took and are starting it to answer. The start never fails on it: the receipt says when the question could not be linked, and why.',
       'With --spec and no bound Run, a coordinator gets a new Run bound to it, named after the Task title; the receipt names the Run it created or joined.',

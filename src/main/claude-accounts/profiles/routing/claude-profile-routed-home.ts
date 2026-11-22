@@ -1,3 +1,4 @@
+import { referencedClaudeHome } from '../claude-referenced-profile'
 import { lstat } from 'node:fs/promises'
 import type { ClaudeProfileRouter } from './claude-profile-router'
 import {
@@ -18,6 +19,10 @@ export async function claudeRoutedHomeAsync(
   const profile = router.selectedProfile()
   if (!profile) {
     return null
+  }
+  const account = router.savedAccount(profile.accountId)
+  if (account?.profileOwnership === 'reference') {
+    return referencedClaudeHome(account)
   }
   const login = (configDir: string | undefined) =>
     claudeStateFileAsync(configDir, router.userHome).then(readClaudeFolderLoginAsync)

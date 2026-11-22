@@ -24,6 +24,7 @@ function withoutConfiguredFlag(
 }
 
 export type ClaudeStructuredSpawnOptions = {
+  factoryPolicy?: ClaudeStructuredLaunch['factoryPolicy']
   sdkOptions: ClaudeStructuredSdkOptions
   options: Map<string, string>
   /** Saved Fast must be applied before input when launch settings cannot carry it. */
@@ -32,12 +33,20 @@ export type ClaudeStructuredSpawnOptions = {
 
 /** Pass SDK-valid saved choices through; let the installed CLI reject unsupported values. */
 export function claudeStructuredSpawnOptions(input: {
-  launch: Pick<ClaudeStructuredLaunch, 'options' | 'resumesTranscript'>
+  launch: Pick<ClaudeStructuredLaunch, 'options' | 'resumesTranscript' | 'factoryPolicy'>
   saved: Readonly<Record<string, string>> | undefined
   effortFlag: ClaudeCliFlagFact
   flagSettingsControl: ClaudeCliFlagFact
 }): ClaudeStructuredSpawnOptions {
-  const saved = restoredClaudeStructuredSessionOptions(input.saved)
+  const policy = input.launch.factoryPolicy
+  if (policy && (input.saved?.model !== policy.model || input.saved?.effort !== policy.effort)) {
+    throw new Error('Restricted factory model or effort changed after admission.')
+  }
+  const saved = restoredClaudeStructuredSessionOptions(
+    policy
+      ? { model: policy.model, ...(policy.effort ? { effort: policy.effort } : {}) }
+      : input.saved
+  )
   const options = new Map<string, string>()
   let sdkOptions: ClaudeStructuredSdkOptions = { ...input.launch.options }
   let fastModeAtStart = false
@@ -72,7 +81,7 @@ export function claudeStructuredSpawnOptions(input: {
       }
     }
   }
-  return { sdkOptions, options, fastModeAtStart }
+  return { sdkOptions, options, fastModeAtStart, ...(policy ? { factoryPolicy: policy } : {}) }
 }
 
 /** Orca passes this flag only for a Full access chat; the agent's own arguments cannot carry it. */
@@ -99,6 +108,7 @@ export function adoptClaudeStructuredSpawnOptions(
   // A configured `--model` in the agent's arguments survives when the chat saved none.
   const configuredModel = typeof extraArgs?.model === 'string' ? extraArgs.model : undefined
   session.launchIntent = {
+    ...(spawn.factoryPolicy ? { factoryPolicy: spawn.factoryPolicy } : {}),
     model: spawn.sdkOptions.model ?? configuredModel,
     permissionMode: claudeLaunchSkipsPermissions(spawn.sdkOptions)
       ? 'bypassPermissions'

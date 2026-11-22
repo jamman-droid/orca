@@ -1,3 +1,4 @@
+import { claudeProfileHistoryDirs } from '../../claude-accounts/profiles/routing/claude-profile-installed-router'
 import { lstat, realpath } from 'node:fs/promises'
 import type {
   AiVaultDeleteSessionResult,
@@ -19,7 +20,14 @@ export async function deleteAiVaultSessionFile(
   args: ValidateAiVaultSessionDeleteTargetArgs & { sessionId?: string },
   removePath: AiVaultSessionPathRemover
 ): Promise<AiVaultDeleteSessionResult> {
-  const validation = validateAiVaultSessionDeleteTarget(args)
+  const rootOptions =
+    args.agent === 'claude' && !args.rootOptions?.claudeProfileProjectsDirs
+      ? {
+          ...args.rootOptions,
+          claudeProfileProjectsDirs: await claudeProfileHistoryDirs('projects')
+        }
+      : args.rootOptions
+  const validation = validateAiVaultSessionDeleteTarget({ ...args, rootOptions })
   if (!validation.allowed) {
     return { outcome: 'rejected', agent: validation.agent, reason: validation.reason }
   }

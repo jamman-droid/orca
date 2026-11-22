@@ -12,3 +12,17 @@ Approved scope: isolate the fork identity/state/updates, build a supervised Mini
 - [x] Final source gate after account-reference ordering fix: all 41 checks passed in 99.0s. Publish via `feat/private-factory-runtime`; keep rollout evidence outside the public fork.
 
 Remaining rollout acceptance: native Codex references, multi-host model credential relay, protected worker execution, laptop-closure/run recovery, and real project release pilots are not certified by this runtime smoke test.
+
+## Factory-only restricted Claude execution
+
+Approved scope: retain native account/Keychain authority on the coordinator while all model-accessible tools use a single job-scoped loopback MCP gateway. Ordinary chats retain their current launch policy.
+
+- [x] Verify installed CLI flags with control-only initialization (no model call): restricted retains explicit MCP; safe-mode drops it; bare disables Keychain.
+- [x] Persist and enforce pinned model/account, immutable gateway configuration, and an empty existing launch workspace.
+- [x] Disable native tools, inherited settings/skills/plugins/bridges, and reject unmanaged policy overrides in the factory launch path.
+- [x] Test refusal, environment scrubbing and factory launch behavior; run changed-code gate.
+- [x] Coordinate private runtime rebuild and verify actual restricted gateway execution.
+
+Latest source gate: 40 changed checks passed in 65 seconds; all four TypeScript projects and reference identity/moved-home refusal tests pass. Private Mini runtime rebuilt as `0.1.0+f5417c42101f`, GUI service restarted, all seven account references still return fresh usage. Live gateway proof remains in progress; do not equate the source gate with an end-to-end factory pass.
+
+Runtime `0.1.0+2abf99c6fa6e` passed a real restricted gateway command in a disposable remote container (Linux, UID 1000, nonce read from the bundled repository, host-home absence, no network route). The launch receipt bound the selected model/account and gateway hash. Worker and coordinator cleanup were confirmed. A factory completion-message field still needs correction before claiming a full factory-stage pass; that bridge fix is outside this repository.

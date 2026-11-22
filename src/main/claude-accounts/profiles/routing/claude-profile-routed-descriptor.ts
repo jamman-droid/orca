@@ -2,14 +2,17 @@ import { realpath } from 'node:fs/promises'
 import type { ClaudeManagedAccount } from '../../../../shared/agent-accounts/managed-account-types'
 import { describeClaudeProfile } from '../claude-profile-paths'
 import { referencedClaudeHome } from '../claude-referenced-profile'
-import { listClaudeProfileHomes } from '../claude-profile-homes'
+import { listClaudeProfileHomesAsync } from '../claude-profile-homes'
 
 export function describeRoutedClaudeProfile(
   dataRoot: string,
   accountId: string,
   account?: ClaudeManagedAccount
 ) {
-  const home = account && referencedClaudeHome(account)
+  const home = account?.profileOwnership === 'reference' ? account.managedAuthPath : null
+  if (home && account?.managedAuthRuntime === 'wsl') {
+    throw new Error('Referenced Claude profiles are supported only on their native host.')
+  }
   return home
     ? {
         version: 1 as const,
@@ -37,17 +40,17 @@ export async function isReferencedClaudeDirectory(
   }
 }
 
-export function routedClaudeProfileHomes(
+export async function routedClaudeProfileHomes(
   dataRoot: string,
   accounts: readonly ClaudeManagedAccount[]
-): string[] {
-  const homes = listClaudeProfileHomes(dataRoot)
+): Promise<string[]> {
+  const homes = await listClaudeProfileHomesAsync(dataRoot)
   for (const account of accounts) {
     if (account.profileOwnership !== 'reference') {
       continue
     }
     try {
-      const home = referencedClaudeHome(account)
+      const home = await referencedClaudeHome(account)
       if (home) {
         homes.push(home)
       }

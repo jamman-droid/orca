@@ -1,3 +1,5 @@
+import type { ClaudeRuntimeAuthPreparation } from '../../runtime-auth/runtime-auth-types'
+import type { ClaudeEnvPatch } from '../../runtime-auth/environment'
 import { existsSync } from 'node:fs'
 import { claudeProfileMarkerPath, type ClaudeProfileDescriptor } from '../claude-profile-paths'
 import type { ClaudeProfileSetupReport } from '../setup/claude-profile-setup'
@@ -21,4 +23,24 @@ export async function prepareClaudeProfileForLaunch(
     console.warn('[claude-profile] Account refresh failed:', error)
   })
   await Promise.race([refresh, new Promise((resolve) => setTimeout(resolve, waitMs).unref())])
+}
+
+export function claudeRuntimePreparation(input: {
+  profile: ClaudeProfileDescriptor | null
+  home: string | null
+  defaultHome: string
+  envPatch: ClaudeEnvPatch
+}): ClaudeRuntimeAuthPreparation {
+  const { profile, home, defaultHome, envPatch } = input
+  return {
+    configDir: home ?? defaultHome,
+    runtime: 'host',
+    wslDistro: null,
+    wslLinuxConfigDir: null,
+    envPatch,
+    provenance: home ? `profile:${profile?.accountId}` : 'system',
+    ...(home && profile
+      ? { readingAccount: { accountId: profile.accountId, runtime: 'host', wslDistro: null } }
+      : {})
+  }
 }

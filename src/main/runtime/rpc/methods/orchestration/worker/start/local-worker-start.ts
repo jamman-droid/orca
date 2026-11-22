@@ -136,6 +136,9 @@ export async function startLocalWorker(args: {
     }
     await runtime.resolveFactoryWorkerAccountHome(agent ?? '', params.accountId)
     launch.receipt.requested.accountId = params.accountId
+    if (params.factoryMcpConfig) {
+      launch.receipt.requested.factoryPolicy = 'gateway-only-v1'
+    }
   }
 
   // Synchronous through the Dispatch insert, so nothing else claims the terminal in between.

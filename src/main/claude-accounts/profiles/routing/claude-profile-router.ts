@@ -1,4 +1,9 @@
-import { requireReferencedClaudeCredentials } from '../claude-referenced-profile'
+import { claudeProfileTerminalEnvironment } from './claude-profile-terminal-environment'
+import {
+  assertReferencedClaudeLogin,
+  validateReferencedClaudeHome,
+  requireReferencedClaudeCredentials
+} from '../claude-referenced-profile'
 import {
   describeRoutedClaudeProfile,
   isReferencedClaudeDirectory,
@@ -8,15 +13,17 @@ import { prepareManagedClaudeProfile } from './claude-managed-profile-preparatio
 import { claudeAccountUsagePreparation } from './claude-account-usage-preparation'
 import { claudeProfileSelectionHomes } from './claude-profile-selection-homes'
 import { claudeSystemDefaultRunsAnotherAccount } from './claude-system-default-account-comparison'
-import { prepareClaudeProfileForLaunch } from './claude-profile-launch-preparation'
+import {
+  claudeRuntimePreparation,
+  prepareClaudeProfileForLaunch
+} from './claude-profile-launch-preparation'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   CLAUDE_INJECTED_CONFIG_DIR_ENV,
   CLAUDE_PROFILE_POINTER_ENV,
-  CLAUDE_PROFILE_SETUP_FAILED_MESSAGE,
-  CLAUDE_USER_CONFIG_DIR_ENV
+  CLAUDE_PROFILE_SETUP_FAILED_MESSAGE
 } from '../../../../shared/agent-accounts/claude/claude-profile-routing'
 import { claudeProfileMissing } from './claude-profile-launch-errors'
 import type { GlobalSettings } from '../../../../shared/settings/global-settings-types'
@@ -25,7 +32,6 @@ import { writeFileAtomically } from '../../../filesystem/atomic-file-publication
 import {
   type ClaudeProfileDescriptor,
   readUserClaudeConfigDir,
-  readUserClaudeConfigDirAsSet,
   resolveClaudeDefaultHome
 } from '../claude-profile-paths'
 import type { ClaudeProfileSetupReport } from '../setup/claude-profile-setup'
@@ -37,7 +43,6 @@ import {
   getSelectedClaudeAccountIdForTarget,
   type ClaudeAccountSelectionTarget
 } from '../../selection/runtime-selection'
-import { wslClaudeProfilePointer } from '../wsl/claude-profile-wsl-paths'
 import { isDirectory } from '../claude-profile-homes'
 import {
   claudeStateFile,
@@ -107,7 +112,10 @@ export class ClaudeProfileRouter {
   }
 
   accountLogin(accountId: string): ClaudeFolderLogin | null {
-    return readClaudeFolderLogin(claudeStateFile(this.accountHome(accountId), this.userHome))
+    const login = readClaudeFolderLogin(claudeStateFile(this.accountHome(accountId), this.userHome))
+    const account = this.savedAccount(accountId)
+    assertReferencedClaudeLogin(account, login)
+    return login
   }
 
   systemDefaultLogin(maxAgeMs = 0): ClaudeFolderLogin | null {
@@ -209,6 +217,7 @@ export class ClaudeProfileRouter {
   async prepareAccount(accountId: string): Promise<string> {
     const profile = this.describe(accountId)
     if (this.savedAccount(accountId)?.profileOwnership === 'reference') {
+      await this.validateReferenceHome(profile.home)
       await requireReferencedClaudeCredentials(profile.home)
       return profile.home
     }
@@ -278,47 +287,30 @@ export class ClaudeProfileRouter {
 
   /** A broken account selection must not prevent opening a terminal. */
   terminalEnv(target?: ClaudeAccountSelectionTarget): ClaudeEnvPatch {
-    // Pass the pointer without waiting on the guest.
-    if (target?.runtime === 'wsl') {
-      return { [CLAUDE_PROFILE_POINTER_ENV]: `~/${wslClaudeProfilePointer(this.args.dataRoot)}` }
-    }
-    // Save the user's value so the shell function can restore it on System default.
-    const userConfigDir = readUserClaudeConfigDirAsSet(this.env)
-    const base: ClaudeEnvPatch = {
-      [CLAUDE_PROFILE_POINTER_ENV]: this.pointerPath,
-      ...(userConfigDir ? { [CLAUDE_USER_CONFIG_DIR_ENV]: userConfigDir } : {})
-    }
-    // Defer routing until the shell env resolves; the shell function will read the updated pointer.
-    if (!this.envResolved) {
-      return base
-    }
-    try {
-      this.writePointer()
-      // Refresh without delaying terminal creation.
-      const profile = this.routedProfile()
-      if (profile && this.savedAccount(profile.accountId)?.profileOwnership !== 'reference') {
-        this.setUpInBackground(profile)
+    return claudeProfileTerminalEnvironment({
+      target,
+      dataRoot: this.args.dataRoot,
+      pointerPath: this.pointerPath,
+      env: this.env,
+      envResolved: this.envResolved,
+      prepare: () => {
+        this.writePointer()
+        const profile = this.routedProfile()
+        if (profile && this.savedAccount(profile.accountId)?.profileOwnership !== 'reference') {
+          this.setUpInBackground(profile)
+        }
+        return this.launchEnv()
       }
-      return { ...base, ...this.launchEnv() }
-    } catch {
-      return base
-    }
+    })
   }
 
   preparation(): ClaudeRuntimeAuthPreparation {
-    const profile = this.routedProfile()
-    const home = this.routedHome()
-    return {
-      configDir: home ?? this.systemDefaultHome(),
-      runtime: 'host',
-      wslDistro: null,
-      wslLinuxConfigDir: null,
-      envPatch: this.launchEnv(),
-      provenance: home ? `profile:${profile?.accountId}` : 'system',
-      ...(home && profile
-        ? { readingAccount: { accountId: profile.accountId, runtime: 'host', wslDistro: null } }
-        : {})
-    }
+    return claudeRuntimePreparation({
+      profile: this.routedProfile(),
+      home: this.routedHome(),
+      defaultHome: this.systemDefaultHome(),
+      envPatch: this.launchEnv()
+    })
   }
 
   /** Compare pre-routing terminals against the selection; null means no account is selected. */
@@ -343,8 +335,12 @@ export class ClaudeProfileRouter {
     return isReferencedClaudeDirectory(this.args.getSettings().claudeManagedAccounts, home)
   }
 
-  /** Every account folder on this host, selected or not. */
-  accountHomes(): string[] {
+  validateReferenceHome(home: string): Promise<void> {
+    return validateReferencedClaudeHome(this.args.getSettings().claudeManagedAccounts, home)
+  }
+
+  /** Every valid account folder on this host, selected or not. */
+  accountHomes(): Promise<string[]> {
     return routedClaudeProfileHomes(
       this.args.dataRoot,
       this.args.getSettings().claudeManagedAccounts
