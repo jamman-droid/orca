@@ -3,10 +3,10 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import net from 'node:net'
 import path from 'node:path'
 
-export const SHARED_DEV_PROFILE_DIR_NAME = 'orca-dev'
+export const SHARED_DEV_PROFILE_DIR_NAME = 'orca-dev-factory'
 // Why the "orca-dev" prefix: CLI/orchestration dev-mode checks match "orca-dev" in ORCA_USER_DATA_PATH.
 // Why short: runtime sockets live in userData and macOS caps socket paths at 104 bytes.
-export const WORKTREE_DEV_PROFILES_DIR_NAME = 'orca-dev-wt'
+export const WORKTREE_DEV_PROFILES_DIR_NAME = 'orca-dev-fw'
 export const WORKTREE_PROFILE_MARKER_FILE = 'orca-dev-worktree.json'
 export const WORKTREE_PROFILE_NAME_PATTERN = /^[\da-f]{10}$/
 export const DEV_PROFILE_MODES = ['shared', 'worktree']

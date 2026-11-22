@@ -170,15 +170,16 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
     ) => AgentSessionAccountHome | Promise<AgentSessionAccountHome>
   ): Promise<AgentSessionAttachParams> {
     const support = await this.getStructuredAgentSessionCreateSupport(input.worktree, input.agent)
-    // Adopting a conversation reads the agent's own transcript, so only an agent registered with an
-    // importer adopts.
+    // Adoption requires a registered transcript importer.
     const transcriptImport = structuredAgentRuntimeMetadata(input.agent)?.transcriptImport
     if (!support.supported || (input.resumeFrom && !transcriptImport)) {
       throw agentSessionRefusalError('structured_agent_session_unsupported', {
         reason: 'hostUnsupported'
       })
     }
-    await this.accounts.prepareHostAgentLaunch(input.agent)
+    if (!input.accountHome) {
+      await this.accounts.prepareHostAgentLaunch(input.agent)
+    }
     const settings = this.requireStore().getSettings()
     const launchEnv = this.structuredAgentLaunchEnv(input.agent, settings)
     const options = structuredLaunchSeedOptions(
@@ -190,9 +191,8 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
     )
     const location = await this.resolveStructuredAgentSessionLocation(input.worktree)
     const definition = this.requireRegisteredStructuredAgent(input.agent)
-    const host = getStructuredAgentSessionHost()
     const committedReplay = resolveCommittedStructuredAgentSessionAdoptionIntent({
-      host,
+      host: getStructuredAgentSessionHost(),
       ...input,
       location,
       ...(options ? { options } : {})
@@ -211,7 +211,8 @@ export abstract class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport exte
       ? (await this.resolveRuntimeFileTarget(input.worktree)).worktree.path
       : ''
     const permissionMode = options?.[AGENT_CHAT_PERMISSION_MODE_OPTION_ID]
-    const selectedAccountHome = await resolveAccountHome({ launchEnv, location }, permissionMode)
+    const selectedAccountHome =
+      input.accountHome ?? (await resolveAccountHome({ launchEnv, location }, permissionMode))
     // Adoption pins the transcript's actual account home; fresh-create defaults may open a blank conversation under the old name.
     const adoption =
       resumeFrom && transcriptImport

@@ -76,8 +76,6 @@ export function buildClaudeChildProcessEnv(
   }
   stripInheritedAgentSessionEnv(env, { platform })
   const configured = { ...env, ...configuredEnv }
-  for (const key of options.envToDelete ?? []) {
-    delete configured[key]
-  }
+  stripEnvKeys(configured, options.envToDelete ?? [], platform)
   return configured
 }

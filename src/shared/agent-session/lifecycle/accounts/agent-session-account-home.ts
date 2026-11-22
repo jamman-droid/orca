@@ -7,6 +7,8 @@ import type { AgentSessionStoredAgent } from '../records/agent-session-stored-ag
 export type LegacyAgentSessionAccountHome = {
   /** Environment variable naming the agent's config directory. */
   variable: string
+  /** Factory reservation: this session must never follow global account selection. */
+  factoryAccountId?: string
   /** Host-resolved absolute path in the execution host's own path syntax. */
   path: string
 }
@@ -127,6 +129,9 @@ export function isAgentSessionAccountHome(value: unknown): value is AgentSession
     return false
   }
   if (!('kind' in value)) {
+    if ('factoryAccountId' in value && !isBoundedAccountString(value.factoryAccountId, 512)) {
+      return false
+    }
     return (
       'variable' in value &&
       typeof value.variable === 'string' &&

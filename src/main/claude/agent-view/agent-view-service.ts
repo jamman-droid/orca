@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { getAppEnvironment } from '../../../shared/app-lifecycle/app-environment'
@@ -21,6 +22,7 @@ type NavigationSettings = Partial<
     | 'disabledTuiAgents'
     | 'agentDefaultEnv'
     | 'agentCmdOverrides'
+    | 'claudeManagedAccounts'
   >
 >
 
@@ -44,6 +46,14 @@ async function isClaudeOnPath(settings: NavigationSettings): Promise<boolean> {
   return presence.claude?.state === 'found'
 }
 
+async function canonicalConfigDirectory(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
 export class ClaudeAgentViewService {
   private tail: Promise<void> = Promise.resolve()
   private key?: string
@@ -52,6 +62,7 @@ export class ClaudeAgentViewService {
   private writesConfig = false
   private pluginRoot?: string
   private readonly configs = new Set<string>()
+  private readonly referencedProfiles = new Set<string>()
   private defaultConfig = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
 
   constructor(
@@ -70,7 +81,14 @@ export class ClaudeAgentViewService {
       settings.claudeSubagentNavigationEnabled !== false &&
       isAgentStatusHooksEnabledForAgent(settings, 'claude')
     const customConfig = settings.agentDefaultEnv?.claude?.CLAUDE_CONFIG_DIR
-    const key = JSON.stringify([enabled, customConfig])
+    const referenceHomes = (settings.claudeManagedAccounts ?? [])
+      .filter((account) => account.profileOwnership === 'reference')
+      .map((account) => account.managedAuthPath)
+    // Protect canonical registered homes before older queued reconciliations can write.
+    for (const home of referenceHomes) {
+      this.referencedProfiles.add(resolve(home))
+    }
+    const key = JSON.stringify([enabled, customConfig, referenceHomes])
     if (key === this.key) {
       return this.tail
     }
@@ -79,6 +97,9 @@ export class ClaudeAgentViewService {
     this.pluginRoot = undefined
     const generation = ++this.generation
     return this.enqueue(async () => {
+      for (const home of referenceHomes) {
+        this.referencedProfiles.add(await canonicalConfigDirectory(home))
+      }
       const env = enabled ? await this.deps.loginEnv() : process.env
       // Without Claude, leave its config untouched: neither add the binding nor remove one.
       const writesConfig = !enabled || (await this.deps.claudeOnPath(settings).catch(() => false))
@@ -99,7 +120,9 @@ export class ClaudeAgentViewService {
         }
       }
       for (const dir of writesConfig ? this.configs : []) {
-        await this.deps.reconcileConfig(join(dir, 'settings.json'), enabled)
+        if (!this.referencedProfiles.has(await canonicalConfigDirectory(dir))) {
+          await this.deps.reconcileConfig(join(dir, 'settings.json'), enabled)
+        }
       }
       const root = enabled ? await this.deps.ensurePlugin(this.userDataPath) : undefined
       if (generation === this.generation) {
@@ -115,7 +138,7 @@ export class ClaudeAgentViewService {
     }
     this.configs.add(dir)
     return this.enqueue(async () => {
-      if (this.writesConfig) {
+      if (this.writesConfig && !this.referencedProfiles.has(await canonicalConfigDirectory(dir))) {
         await this.deps.reconcileConfig(join(dir, 'settings.json'), this.enabled)
       }
     })

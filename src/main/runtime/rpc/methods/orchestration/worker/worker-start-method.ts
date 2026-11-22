@@ -66,6 +66,12 @@ export async function startWorker(
   ctx: WorkerStartContext,
   startFollowUp?: WorkerFollowUp
 ): Promise<unknown> {
+  if (startParams.accountId && startParams.on) {
+    throw new OrchestrationError(
+      'invalid_argument',
+      '--account-id must run directly on the execution host; federated terminal workers cannot pin accounts.'
+    )
+  }
   const { runtime, orchestrationMutation, orchestrationCaller } = ctx
   if (startParams.origin !== undefined && startParams.on) {
     throw new OrchestrationError(
@@ -95,7 +101,9 @@ export async function startWorker(
   const withLink = <T>(started: T): T => withQuestionLink(questionLink, started)
   const mode = decideWorkerStartMode({
     params,
-    settings: readWorkerStartModeSettings(runtime)
+    settings: params.accountId
+      ? { nativeChatProviders: { claude: true, codex: true } }
+      : readWorkerStartModeSettings(runtime)
   })
   if (params.on) {
     // Remote workers are terminal-only; carry the mode receipt to explain structured-preference fallback.

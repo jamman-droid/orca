@@ -1,3 +1,4 @@
+import { isLegacyAgentSessionAccountHome } from '../../../../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
 import {
   closeStructuredAgentSessionChild,
   type StructuredAgentSessionCloseOptions
@@ -99,10 +100,12 @@ export async function createStructuredWorkerSession(args: {
   worktreeId: string
   agent: TuiAgent
   dispatchId: string
+  accountId?: string
   /** The dispatch's own `--model`/`--effort`, already narrowed to the seedable string subset. */
   options?: Readonly<Record<string, string>>
 }): Promise<{
   identity: StructuredWorkerIdentity
+  accountId?: string
   host: StructuredAgentSessionHost
   /** The lease the create was admitted at. */
   fence: number
@@ -139,6 +142,14 @@ export async function createStructuredWorkerSession(args: {
       },
       worktree: `id:${args.worktreeId}`,
       agent: args.agent,
+      ...(args.accountId
+        ? {
+            accountHome: await args.runtime.resolveFactoryWorkerAccountHome(
+              args.agent,
+              args.accountId
+            )
+          }
+        : {}),
       // Absent, the host seeds the user's saved selection — the same fallback a chat gets.
       ...(args.options ? { options: args.options } : {}),
       ...(structuredWorkerModelReplacesSavedSelection(args.agent, args.options?.model)
@@ -163,7 +174,15 @@ export async function createStructuredWorkerSession(args: {
       )
     }
     ensureStructuredWorkerSessionBinding(identity)
-    return { identity, host, fence: created.value.fence, options: record.options }
+    return {
+      identity,
+      host,
+      fence: created.value.fence,
+      options: record.options,
+      ...(isLegacyAgentSessionAccountHome(record.accountHome) && record.accountHome.factoryAccountId
+        ? { accountId: record.accountHome.factoryAccountId }
+        : {})
+    }
   } catch (error) {
     // Failed post-create starts must retire the otherwise unowned live provider child.
     structuredWorkerIdentities.forget(identity.handle)

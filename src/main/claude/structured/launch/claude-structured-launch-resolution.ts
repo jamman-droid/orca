@@ -1,7 +1,11 @@
 import { claudeBotSessionOptions } from './claude-bot-session-options'
 import { withBotLaunchToolsEnv } from '../../../bots/bot-launch-tools'
 import type { ClaudeAccountRecipe } from '../../../../shared/agent-session/lifecycle/accounts/agent-session-acquired-account'
-import { prepareClaudeLaunchAccount, withClaudeLaunchAccountPin } from './claude-launch-account'
+import {
+  prepareClaudeLaunchAccount,
+  withClaudeLaunchAccountPin,
+  claudeAccountEnvironmentDeletions
+} from './claude-launch-account'
 import { assertStructuredAgentResolutionCurrent } from '../../../native-chat/agent-launch/structured-agent-command-resolution'
 import { activeProviderContext } from '../../../../shared/agent-session/conversation-context/agent-session-provider-context'
 import { getClaudeProfileRouter } from '../../../claude-accounts/profiles/routing/claude-profile-installed-router'
@@ -191,7 +195,12 @@ export function claudeStructuredLaunchPart(
       command: sources.command,
       prefixArgs: sources.prefixArgs,
       cwd,
-      env: await withClaudeLaunchAccountPin(router, claudeProbeEnv(sources), accountHome.path)
+      env: await withClaudeLaunchAccountPin(
+        router,
+        claudeProbeEnv(sources),
+        accountHome.path,
+        accountHome.factoryAccountId
+      )
     }
     const launchFlags = resolveClaudeLaunchFlags(
       { ...deps, prepareVisuals: basis.visuals },
@@ -245,7 +254,12 @@ export function claudeStructuredLaunchPart(
       sources,
       { runtimeOnPath: false }
     )
-    const accountRecipe = await prepareClaudeLaunchAccount(router, env, accountHome.path)
+    const accountRecipe = await prepareClaudeLaunchAccount(
+      router,
+      env,
+      accountHome.path,
+      accountHome.factoryAccountId
+    )
     const launchHome = accountRecipe.home
     // Read the config of the account directory the spawn pins, as session acquisition does.
     const chromeArgs = await claudeInChromeDefaultArgs(
@@ -302,7 +316,10 @@ export function claudeStructuredLaunchPart(
           : {})
       },
       env,
-      inheritedEnvToDelete: refused.envToDelete,
+      inheritedEnvToDelete: [
+        ...refused.envToDelete,
+        ...claudeAccountEnvironmentDeletions(accountHome.factoryAccountId, accountRecipe, router)
+      ],
       // The agent runtime follows Orca's CLI directory on PATH so another orca cannot shadow it.
       cliRuntimeCommand: command
     }

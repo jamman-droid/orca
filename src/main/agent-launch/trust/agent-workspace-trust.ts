@@ -1,3 +1,4 @@
+import { getClaudeProfileRouter } from '../../claude-accounts/profiles/routing/claude-profile-installed-router'
 import { homedir } from 'node:os'
 import {
   AGENT_TRUST_WRITE_DEADLINE_MS,
@@ -76,6 +77,14 @@ export async function applyAgentWorkspaceTrust(
   workspacePath: string,
   context: AgentTrustLaunchContext
 ): Promise<AgentTrustSpawnFields> {
+  if (
+    preset === 'claude' &&
+    (await getClaudeProfileRouter()?.isReferencedHome(
+      context.claudeAuth?.configDir ?? context.env?.CLAUDE_CONFIG_DIR
+    ))
+  ) {
+    return {}
+  }
   if (context.connectionId) {
     // Forward to the SSH relay so trust is written on the agent’s host.
     return { agentWorkspaceTrust: { workspacePath } }

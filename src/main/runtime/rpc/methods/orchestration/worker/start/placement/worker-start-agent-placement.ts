@@ -168,6 +168,9 @@ async function launchWorkerAgent(
           })
         },
         createWorktree: async ({ startupAgent, promisedAgentChat, onWorkspaceCreated }) => {
+          if (args.params.accountId && startupAgent) {
+            throw new Error('The reserved account cannot launch as a terminal worker.')
+          }
           created = await createWorkerWorktree({
             runtime: args.runtime,
             db: args.db,
@@ -235,6 +238,9 @@ function launchedWorkerReceipt(
     return args.launch.receipt
   }
   const receipt = structuredWorkerLaunchReceipt(args.launch.receipt, session.options)
+  if (session.accountId && receipt.effective) {
+    receipt.effective.accountId = session.accountId
+  }
   recordWorkerLaunchObservation(args.db, args.dispatchId, receipt)
   return receipt
 }
@@ -262,6 +268,7 @@ function workerSurfaceFactory(
         worktreeId,
         agent,
         dispatchId: args.dispatchId,
+        accountId: args.params.accountId,
         ...(args.launch.preferences ? { launchPreferences: args.launch.preferences } : {}),
         effects: args.effects
       })
@@ -273,6 +280,9 @@ function workerSurfaceFactory(
       }
     },
     createTerminalAgent: async ({ worktreeId }) => {
+      if (args.params.accountId) {
+        throw new Error('The reserved account cannot launch as a terminal worker.')
+      }
       recordSurfaceStage(worktreeId)
       const terminal = await createExistingWorktreeWorkerTerminal({
         runtime: args.runtime,

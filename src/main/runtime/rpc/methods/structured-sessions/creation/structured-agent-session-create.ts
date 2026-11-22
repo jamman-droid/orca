@@ -1,3 +1,4 @@
+import type { AgentSessionAccountHome } from '../../../../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
 import { computeAgentSessionPayloadFingerprint } from '../../../../../../shared/agent-session/lifecycle/operations/agent-session-mutation-envelope'
 import type { StructuredSessionSurface } from '../../../../agent-session/lifecycle/structured-agent-session-close'
 import { structuredAgentSessionTabId } from '../../../../../../shared/agent-session/view/structured-agent-session-projection'
@@ -62,6 +63,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
   envelope: AgentSessionMutationEnvelope
   worktree: string
   agent: StructuredAgentId
+  accountHome?: AgentSessionAccountHome
   caller: StructuredAgentSessionCaller
   forkFrom?: { sessionId: string; throughItemId: string }
   resumeFrom?: StructuredAgentSessionResumeSource
@@ -98,6 +100,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
     worktree: args.worktree,
     agent: args.agent,
     callerKey: args.caller.callerKey,
+    ...(args.accountHome ? { accountHome: args.accountHome } : {}),
     structuredAgentCliSourceEvidence,
     ...(args.resumeFrom ? { resumeFrom: args.resumeFrom } : {}),
     ...(args.forkFrom ? { forkFrom: args.forkFrom } : {})
@@ -276,6 +279,7 @@ export async function createStructuredAgentSessionForWorktree(args: {
   envelope: AgentSessionMutationEnvelope
   worktree: string
   agent: StructuredAgentId
+  accountHome?: AgentSessionAccountHome
   activate: boolean
   optionsMode?: 'replace-model-selection'
   options?: Readonly<Record<string, string>>
