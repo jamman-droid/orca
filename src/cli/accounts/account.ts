@@ -1,3 +1,4 @@
+import { requestedAccountUsageRefresh } from './account-usage-snapshot'
 import { spawnProcess } from '@orca/process-host'
 import { windowsSystem32Binary } from '@orca/process-host/windows-system-binary'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -273,6 +274,10 @@ export const ACCOUNT_HANDLERS: Record<string, CommandHandler> = {
   },
   'account list': async (ctx) => {
     rejectAccountRemoteSelectionFlags(ctx, 'orca account list')
+    const refreshUsage = await requestedAccountUsageRefresh(
+      ctx.flags,
+      async () => (await ctx.client.call<RuntimeStatus>('status.get')).result.capabilities
+    )
     const provider = ctx.flags.get('agent')
     if (provider !== undefined) {
       await listAgentAccounts(ctx, provider)
@@ -281,8 +286,8 @@ export const ACCOUNT_HANDLERS: Record<string, CommandHandler> = {
     const { client, json } = ctx
     // JSON carries usage: refresh stale windows within throttles; a forced refresh bypasses Retry-After.
     const response = await client.call<AccountsListSnapshot>('accounts.list', {
-      refreshUsage: false,
-      ...(json ? { refreshStaleUsage: true } : {})
+      refreshUsage,
+      ...(json && !refreshUsage ? { refreshStaleUsage: true } : {})
     })
     // Why separate: Antigravity accounts live in their own native vault, not in the
     // accounts.list snapshot, and an older host simply has none to show.

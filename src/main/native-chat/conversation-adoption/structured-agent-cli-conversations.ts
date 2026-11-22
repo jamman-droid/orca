@@ -52,7 +52,7 @@ export function directoryTranscriptImport(directories: {
   accountHomeCandidates: (input: {
     settings: StructuredAgentTranscriptImportSettings
     selectedAccountHomePath: string
-  }) => string[]
+  }) => string[] | Promise<string[]>
   /** Never derive fallback roots outside this store. */
   findTranscript: (input: {
     providerSessionId: string
@@ -74,14 +74,21 @@ export function directoryTranscriptImport(directories: {
     admitTranscriptPath: async ({ store, transcriptPath }) =>
       (await admitTranscriptPath(store, transcriptPath))?.path ?? null,
     ...(directories.handleNamesTranscript ? { handleNamesTranscript: true } : {}),
-    accountHomeCandidates: ({ settings, selectedAccountHome }) =>
-      isLegacyAgentSessionAccountHome(selectedAccountHome)
-        ? directories
-            .accountHomeCandidates({ settings, selectedAccountHomePath: selectedAccountHome.path })
-            .map((path) => path.trim())
-            .filter((path) => path.length > 0)
-            .map((path) => ({ variable: selectedAccountHome.variable, path }))
-        : [],
+    accountHomeCandidates: ({ settings, selectedAccountHome }) => {
+      if (!isLegacyAgentSessionAccountHome(selectedAccountHome)) {
+        return []
+      }
+      const homes = directories.accountHomeCandidates({
+        settings,
+        selectedAccountHomePath: selectedAccountHome.path
+      })
+      const accounts = (paths: string[]) =>
+        paths
+          .map((path) => path.trim())
+          .filter((path) => path.length > 0)
+          .map((path) => ({ variable: selectedAccountHome.variable, path }))
+      return homes instanceof Promise ? homes.then(accounts) : accounts(homes)
+    },
     findTranscript: (input) => directories.findTranscript(input)
   }
 }

@@ -158,7 +158,11 @@ export type ClaudeSession = {
   /** Inputs carried by launch or accepted controls, independent of provider reports. */
   appliedInputOptions: Map<string, string>
   /** What Orca put on this process's command line, and the mode it opened in; this process only. */
-  launchIntent?: { permissionMode?: string; model?: string }
+  launchIntent?: {
+    permissionMode?: string
+    model?: string
+    factoryPolicy?: { model: string; effort?: string }
+  }
   firstRootInit?: { permissionMode: string | null }
   /** Claude's own effective settings turn bypass off for this process (startup `get_settings`). */
   bypassDisabled?: boolean

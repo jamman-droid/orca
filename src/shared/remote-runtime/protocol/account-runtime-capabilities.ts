@@ -1,3 +1,4 @@
+export const ACCOUNT_USAGE_SNAPSHOT_RUNTIME_CAPABILITY = 'accounts.usage-snapshot.v1' as const
 export const CODEX_RESET_CREDIT_RUNTIME_CAPABILITY = 'accounts.codex-reset-credit.v1' as const
 export const ACCOUNT_IMPORT_RUNTIME_CAPABILITY = 'accounts.import-host-credentials.v1' as const
 // Why: `orca account add claude` signs in to an account folder the host creates first.
@@ -25,6 +26,7 @@ export const HOST_ACCOUNT_SIGN_IN_RUNTIME_CAPABILITY = 'accounts.host-sign-in.v1
 export const HOST_ACCOUNT_REAUTH_RUNTIME_CAPABILITY = 'accounts.host-sign-in-reauth.v1' as const
 
 export const ACCOUNT_RUNTIME_CAPABILITIES = [
+  ACCOUNT_USAGE_SNAPSHOT_RUNTIME_CAPABILITY,
   ACCOUNT_IMPORT_RUNTIME_CAPABILITY,
   CLAUDE_SIGN_IN_RUNTIME_CAPABILITY,
   ANTIGRAVITY_ACCOUNTS_RUNTIME_CAPABILITY,

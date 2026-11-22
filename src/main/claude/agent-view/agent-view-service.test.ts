@@ -1,4 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  symlink,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -18,6 +27,92 @@ afterEach(async () => {
   vi.unstubAllEnvs()
   vi.useRealTimers()
   resetLoginShellEnvironmentCacheForTests()
+})
+
+it('never installs or removes navigation configuration in a referenced account profile', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'orca-referenced-view-'))
+  roots.push(root)
+  const profile = join(root, 'source')
+  await mkdir(profile)
+  await writeFile(join(profile, 'settings.json'), '{"userOwned":true}')
+  const alias = join(root, 'source-alias')
+  await symlink(profile, alias, 'junction')
+  vi.stubEnv('CLAUDE_CONFIG_DIR', alias)
+  const service = new ClaudeAgentViewService(join(root, 'orca'), {
+    reconcileConfig: reconcileClaudeAgentViewConfig,
+    ensurePlugin: ensureClaudeAgentViewPluginAsync,
+    listProfiles: async () => [profile],
+    loginEnv: async () => ({ CLAUDE_CONFIG_DIR: alias }),
+    claudeOnPath: async () => true
+  })
+  const account = {
+    id: 'source',
+    email: 'user@example.test',
+    managedAuthPath: profile,
+    profileOwnership: 'reference' as const,
+    authMethod: 'subscription-oauth' as const,
+    createdAt: 1,
+    updatedAt: 1,
+    lastAuthenticatedAt: 1
+  }
+  await service.reconcile({ claudeManagedAccounts: [account] })
+  await service.prepareProfile(alias)
+  await service.reconcile({
+    claudeManagedAccounts: [account],
+    claudeSubagentNavigationEnabled: false
+  })
+  expect(await readdir(profile)).toEqual(['settings.json'])
+  expect(await readFile(join(profile, 'settings.json'), 'utf8')).toBe('{"userOwned":true}')
+})
+
+it('protects newly referenced profiles from an older pending reconciliation', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'orca-reference-pending-')))
+  roots.push(root)
+  const profile = join(root, 'source')
+  await mkdir(profile)
+  await writeFile(join(profile, 'settings.json'), '{"userOwned":true}')
+  const alias = join(root, 'source-alias')
+  await symlink(profile, alias, 'junction')
+  vi.stubEnv('CLAUDE_CONFIG_DIR', alias)
+  let releaseLogin!: () => void
+  let markLoginStarted!: () => void
+  const loginReady = new Promise<void>((resolve) => {
+    releaseLogin = resolve
+  })
+  const loginStarted = new Promise<void>((resolve) => {
+    markLoginStarted = resolve
+  })
+  const service = new ClaudeAgentViewService(join(root, 'orca'), {
+    reconcileConfig: reconcileClaudeAgentViewConfig,
+    ensurePlugin: ensureClaudeAgentViewPluginAsync,
+    listProfiles: async () => [],
+    loginEnv: async () => {
+      markLoginStarted()
+      await loginReady
+      return { CLAUDE_CONFIG_DIR: alias }
+    },
+    claudeOnPath: async () => true
+  })
+  const pending = service.reconcile({})
+  await loginStarted
+  const registered = service.reconcile({
+    claudeManagedAccounts: [
+      {
+        id: 'source',
+        email: 'user@example.test',
+        managedAuthPath: profile,
+        profileOwnership: 'reference',
+        authMethod: 'subscription-oauth',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAuthenticatedAt: 1
+      }
+    ]
+  })
+  releaseLogin()
+  await Promise.all([pending, registered])
+  expect(await readdir(profile)).toEqual(['settings.json'])
+  expect(await readFile(join(profile, 'settings.json'), 'utf8')).toBe('{"userOwned":true}')
 })
 
 it('prepares navigation by default and respects removed shortcuts after reenabling', async () => {

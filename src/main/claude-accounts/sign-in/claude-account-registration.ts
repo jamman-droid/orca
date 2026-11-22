@@ -1,3 +1,7 @@
+import {
+  readClaudeProfileReference,
+  requireReferencedClaudeCredentials
+} from '../profiles/claude-referenced-profile'
 import { randomUUID } from 'node:crypto'
 import type {
   ClaudeAccountSignIn,
@@ -35,6 +39,39 @@ export class ClaudeAccountRegistration {
     }
   ) {}
 
+  async reference(configDir: string): Promise<ClaudeRateLimitAccountsState> {
+    const { home, login } = await readClaudeProfileReference(configDir)
+    await requireReferencedClaudeCredentials(home)
+    const accounts = this.deps.store.getSettings().claudeManagedAccounts
+    const duplicate = accounts.find(
+      (account) => account.managedAuthRuntime !== 'wsl' && isSameClaudeLogin(account, login)
+    )
+    if (duplicate) {
+      if (duplicate.profileOwnership === 'reference' && duplicate.managedAuthPath === home) {
+        return this.deps.selection.list()
+      }
+      throw new Error('This Claude account is already registered from another profile.')
+    }
+    const now = Date.now()
+    this.deps.selection.saveSettings({
+      claudeManagedAccounts: [
+        ...accounts,
+        {
+          id: randomUUID(),
+          ...login,
+          managedAuthPath: home,
+          managedAuthRuntime: 'host',
+          profileOwnership: 'reference',
+          authMethod: 'subscription-oauth',
+          createdAt: now,
+          updatedAt: now,
+          lastAuthenticatedAt: now
+        }
+      ]
+    })
+    return this.deps.selection.list()
+  }
+
   async begin(request: ClaudeSignInRequest): Promise<ClaudeAccountSignIn> {
     const { accountId, target, folder } = await this.prepare(request)
     return { accountId, configDir: folder.configDir, ...target }
@@ -67,6 +104,11 @@ export class ClaudeAccountRegistration {
 
   private async prepare(request: ClaudeSignInRequest) {
     const saved = request.accountId ? this.deps.selection.requireAccount(request.accountId) : null
+    if (saved?.profileOwnership === 'reference') {
+      throw new Error(
+        'Reauthenticate this profile in its original account manager; Orca only references it.'
+      )
+    }
     const target = saved ? getClaudeSelectionTargetForAccount(saved) : signInTarget(request)
     const accountId = saved?.id ?? randomUUID()
     const folder = await this.deps.runtimeAuth.prepareAccountFolder(accountId, target)
@@ -85,6 +127,9 @@ export class ClaudeAccountRegistration {
   ): Promise<ClaudeRateLimitAccountsState> {
     const { store, rateLimits, runtimeAuth, selection } = this.deps
     const saved = selection.findAccount(signIn.accountId)
+    if (saved?.profileOwnership === 'reference') {
+      throw new Error('Referenced profiles cannot be overwritten by Orca sign-in.')
+    }
     const target = saved ? getClaudeSelectionTargetForAccount(saved) : signInTarget(signIn)
     // Merge onboarding into the state file created by login.
     const folder = await runtimeAuth.prepareAccountFolder(signIn.accountId, target)

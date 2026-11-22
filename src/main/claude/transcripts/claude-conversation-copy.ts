@@ -29,7 +29,7 @@ export const copyClaudeConversation: NonNullable<
   const router = getClaudeProfileRouter()
   const homes = new Set([
     destinationHome,
-    ...(router ? [...router.accountHomes(), router.systemDefaultHome()] : [])
+    ...(router ? [...(await router.accountHomes()), router.systemDefaultHome()] : [])
   ])
   for (const home of homes) {
     signal.throwIfAborted()

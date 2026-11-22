@@ -1,5 +1,6 @@
 /** Durable account binding: existing single-directory records or OpenCode's data context. */
 
+import { isFactoryClaudePolicy, type FactoryClaudePolicy } from './factory-claude-policy'
 import type { AgentSessionStoredAgent } from '../records/agent-session-stored-agent'
 
 /** Account root the chat was created or adopted under, where its history was first written. An agent
@@ -7,6 +8,9 @@ import type { AgentSessionStoredAgent } from '../records/agent-session-stored-ag
 export type LegacyAgentSessionAccountHome = {
   /** Environment variable naming the agent's config directory. */
   variable: string
+  /** Factory reservation: this session must never follow global account selection. */
+  factoryAccountId?: string
+  factoryPolicy?: FactoryClaudePolicy
   /** Host-resolved absolute path in the execution host's own path syntax. */
   path: string
 }
@@ -127,6 +131,15 @@ export function isAgentSessionAccountHome(value: unknown): value is AgentSession
     return false
   }
   if (!('kind' in value)) {
+    if (
+      'factoryPolicy' in value &&
+      (!isFactoryClaudePolicy(value.factoryPolicy) || !('factoryAccountId' in value))
+    ) {
+      return false
+    }
+    if ('factoryAccountId' in value && !isBoundedAccountString(value.factoryAccountId, 512)) {
+      return false
+    }
     return (
       'variable' in value &&
       typeof value.variable === 'string' &&

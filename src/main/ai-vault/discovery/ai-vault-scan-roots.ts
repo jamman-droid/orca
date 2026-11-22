@@ -66,7 +66,7 @@ export async function resolveLocalAiVaultScanRoots(): Promise<{
       ),
       wslHomeDirs: wsl.homes,
       // Scanner workers have no account router; supply profile roots from this process.
-      claudeProfileProjectsDirs: claudeProfileHistoryDirs('projects'),
+      claudeProfileProjectsDirs: await claudeProfileHistoryDirs('projects'),
       opencodeAccountDataDirs: managedOpenCodeAccountDataDirs(),
       // The chat host's state root, as structured-session-account-home resolves it.
       antigravityChatBrainDir: antigravityChatBrainDir(getProfileUserDataPath()),

@@ -72,6 +72,7 @@ export type CodexManagedAccountRuntimeSelection = {
 }
 
 export type ClaudeManagedAccount = {
+  profileOwnership?: 'reference'
   id: string
   email: string
   managedAuthPath: string

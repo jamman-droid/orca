@@ -6,7 +6,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     path: ['orchestration', 'worker-start'],
     summary: 'Start one supervised worker on the Run home or a connected Orca server',
     usage:
-      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment>] [--worktree <current|selector|new-child|new-top-level>] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--retry-request <id>] [--item <n>] [--for <message_id>] [--json]',
+      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment>] [--worktree <current|selector|new-child|new-top-level>] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--account-id <id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--retry-request <id>] [--item <n>] [--for <message_id>] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'task',
@@ -21,6 +21,8 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'name',
       'repo',
       'base-branch',
+      'account-id',
+      'factory-mcp-config',
       'display-name',
       'comment',
       'setup',
@@ -38,6 +40,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     ],
     identityFlagRoles: { from: 'caller', terminal: 'target' },
     notes: [
+      '--factory-mcp-config requires a pinned Claude account, exact model, and an existing empty folder workspace. Only its loopback factory MCP gateway is available; native tools and normal customizations are disabled.',
       "--item <n> (from a bot's own chat) links the worker to that item and moves it to In progress.",
       '--for <message id> links the worker to a question you took and are starting it to answer. The start never fails on it: the receipt says when the question could not be linked, and why.',
       'With --spec and no bound Run, a coordinator gets a new Run bound to it, named after the Task title; the receipt names the Run it created or joined.',

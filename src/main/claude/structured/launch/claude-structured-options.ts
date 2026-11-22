@@ -132,6 +132,31 @@ export function setClaudeStructuredSessionOption(
   return setClaudeStructuredOption(session, input, timeoutMs)
 }
 
+export function assertFactoryClaudeOptions(
+  session: Pick<ClaudeSession, 'launchIntent'>,
+  options: Readonly<Record<string, string | undefined>>
+): void {
+  const policy = session.launchIntent?.factoryPolicy
+  if (!policy) {
+    return
+  }
+  for (const [key, value] of Object.entries(options)) {
+    if (
+      value !== undefined &&
+      !(
+        (key === 'model' && value === policy.model) ||
+        (key === 'effort' && value === policy.effort) ||
+        (key === 'fastMode' && value === 'false') ||
+        (key === 'interactionMode' && value === 'default')
+      )
+    ) {
+      throw new AgentSessionOptionRejectedError(
+        'Factory model, effort and permissions are fixed by the admitted job.'
+      )
+    }
+  }
+}
+
 export async function setClaudeStructuredOption(
   session: ClaudeSession,
   input: { key: string; value: string },
@@ -141,6 +166,7 @@ export async function setClaudeStructuredOption(
     input.key === 'fastMode'
       ? decodeStructuredAgentSessionOptionValue('fastMode', input.value)
       : null
+  assertFactoryClaudeOptions(session, { [input.key]: input.value })
   const effort = claudeEffortLevel(input.value)
   const ultracode = input.value === 'ultracode'
   const leavesUltracode =

@@ -9,6 +9,9 @@ import { OrchestrationError } from '../../../../../../orchestration/orchestratio
 
 export type OrchestrationWorkerLaunchSelection = {
   agent: TuiAgent | null
+  accountId?: string
+  factoryPolicy?: 'gateway-only-v1'
+  factoryConfigSha256?: string
   model: string | null
   effort: string | null
 }

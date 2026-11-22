@@ -33,9 +33,9 @@
 4 src/main/ai-vault-search/session-search-enablement.ts
 2 src/main/ai-vault-search/storage/session-search-schema.ts
 1 src/main/ai-vault-search/worker/session-search-worker-client.ts
-3 src/main/ai-vault/discovery/ai-vault-scan-roots.ts
+2 src/main/ai-vault/discovery/ai-vault-scan-roots.ts
 1 src/main/ai-vault/discovery/session-scanner-agent-sources.ts
-3 src/main/ai-vault/discovery/session-scanner-roots.ts
+2 src/main/ai-vault/discovery/session-scanner-roots.ts
 3 src/main/ai-vault/discovery/session-scanner-source-discovery.ts
 2 src/main/ai-vault/listing/cached-session-list.ts
 9 src/main/ai-vault/parse-cache/session-parse-cache-database.ts
@@ -188,28 +188,23 @@
 1 src/main/claude-accounts/profiles/claude-profile-homes.ts
 11 src/main/claude-accounts/profiles/claude-profile-paths.ts
 3 src/main/claude-accounts/profiles/routing/claude-observed-config-dirs.ts
-1 src/main/claude-accounts/profiles/routing/claude-profile-installed-router.ts
 1 src/main/claude-accounts/profiles/routing/claude-profile-launch-preparation.ts
-1 src/main/claude-accounts/profiles/routing/claude-profile-routed-home.ts
-11 src/main/claude-accounts/profiles/routing/claude-profile-router.ts
+8 src/main/claude-accounts/profiles/routing/claude-profile-router.ts
 3 src/main/claude-accounts/profiles/setup/claude-profile-history.ts
 14 src/main/claude-accounts/profiles/setup/claude-profile-prompt-history.ts
 11 src/main/claude-accounts/profiles/setup/claude-profile-provisioning.ts
 6 src/main/claude-accounts/profiles/setup/claude-profile-settings.ts
-1 src/main/claude-accounts/profiles/setup/claude-profile-setup-worker.ts
 3 src/main/claude-accounts/profiles/setup/claude-profile-setup.ts
 1 src/main/claude-accounts/profiles/setup/claude-profile-sharing.ts
 1 src/main/claude-accounts/profiles/wsl/claude-profile-wsl-entry.ts
 1 src/main/claude-accounts/profiles/wsl/claude-profile-wsl-provision.ts
 1 src/main/claude-accounts/profiles/wsl/claude-profile-wsl-router.ts
-2 src/main/claude-accounts/runtime-auth/keychain.ts
-5 src/main/claude-accounts/selection/claude-account-selection.ts
+4 src/main/claude-accounts/selection/claude-account-selection.ts
 1 src/main/claude-accounts/service.ts
-6 src/main/claude-accounts/sign-in/claude-account-folder.ts
+3 src/main/claude-accounts/sign-in/claude-account-folder.ts
 2 src/main/claude-accounts/sign-in/claude-account-registration.ts
 7 src/main/claude-accounts/sign-in/claude-command-process.ts
 2 src/main/claude-usage/store.ts
-2 src/main/claude-usage/transcript-file-discovery.ts
 13 src/main/claude/agent-view/agent-view-install.ts
 2 src/main/claude/agent-view/agent-view-plugin.ts
 1 src/main/claude/agent-view/agent-view-service.ts
@@ -816,7 +811,7 @@
 2 src/main/native-chat/conversation-adoption/codex-adoption-preparation.ts
 1 src/main/native-chat/conversation-adoption/structured-agent-cli-conversations.ts
 3 src/main/native-chat/conversation-files/native-chat-media-path.ts
-3 src/main/native-chat/session-file-resolver.ts
+2 src/main/native-chat/session-file-resolver.ts
 1 src/main/native-chat/transcript-discovery/host-readable-transcript-path.ts
 1 src/main/native-chat/transcript-discovery/transcript-path-admission.ts
 3 src/main/native-chat/transcript-filesystem/process/wsl-transcript-fs-process-dispatch.ts
@@ -1113,8 +1108,6 @@
 2 src/main/qoder/workspace-trust.ts
 3 src/main/qwen-code/workspace-trust.ts # Qwen fresh-launch trust (#43989): sync read-modify-write like qoder/workspace-trust.ts so concurrent launches and the sync Qwen hook install cannot lose entries
 1 src/main/rate-limits/providers/antigravity/antigravity-usage-fetcher.ts
-1 src/main/rate-limits/providers/claude/claude-active-usage-fetch.ts
-5 src/main/rate-limits/providers/claude/claude-oauth-credentials.ts
 8 src/main/rate-limits/providers/codex/codex-fetcher.ts
 4 src/main/rate-limits/providers/codex/codex-rpc-rate-limit-probe.ts
 4 src/main/rate-limits/providers/cursor/cursor-auth.ts
@@ -1136,7 +1129,6 @@
 4 src/main/ripgrep/bundled-ripgrep-path.ts
 1 src/main/ripgrep/bundled-ripgrep-spawn.ts
 1 src/main/ripgrep/bundled-ripgrep-text-search.ts
-1 src/main/runtime/agent-session/environment/structured-agent-account-home.ts
 2 src/main/runtime/agent-session/environment/structured-session-child-env.ts
 2 src/main/runtime/agent-session/installation/runtime-structured-agent-host.ts
 3 src/main/runtime/agent-session/installation/structured-agent-runtime-metadata.ts
@@ -1483,7 +1475,6 @@
 1 src/main/workspaces/execution-host/local-project-runtime-resolution.ts
 4 src/main/workspaces/execution-host/project-runtime-git-router.ts
 2 src/main/workspaces/removal/folder-workspace-archive-hook.ts
-1 src/main/workspaces/removal/retirement/worktree-retirement-discovery.ts
 1 src/main/workspaces/removal/worktree-removal-process-cleanup.ts
 1 src/main/workspaces/space-analysis/workspace-space-analysis.ts
 2 src/main/workspaces/space-analysis/workspace-space-repo-scan.ts

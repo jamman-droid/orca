@@ -308,16 +308,16 @@ describe('ClaudeProfileRouter', () => {
 
   // Creating real symlinks requires additional Windows privileges.
 
-  it('lists history under a wrapper CLAUDE_CONFIG_DIR seen in a hook, after restart too', () => {
+  it('lists history under a wrapper CLAUDE_CONFIG_DIR seen in a hook, after restart too', async () => {
     const f = fixture()
     const projects = join(f.root, '.claude-work', 'projects')
     const file = join(f.root, 'observed.json')
     mkdirSync(join(projects, '-proj'), { recursive: true })
     const observe = () => new ClaudeObservedConfigDirs(file, () => ({}))
     installClaudeObservedConfigDirs(observe())
-    expect(claudeProfileHistoryDirs('projects')).toEqual([])
+    expect(await claudeProfileHistoryDirs('projects')).toEqual([])
     getClaudeObservedConfigDirs()?.observeTranscriptPath(join(projects, '-proj', 'id.jsonl'))
     installClaudeObservedConfigDirs(observe())
-    expect(claudeProfileHistoryDirs('projects')).toEqual([projects])
+    expect(await claudeProfileHistoryDirs('projects')).toEqual([projects])
   })
 })

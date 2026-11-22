@@ -66,6 +66,10 @@ export class ClaudeAccountService {
     return this.selection.list()
   }
 
+  referenceAccount(configDir: string): Promise<ClaudeRateLimitAccountsState> {
+    return this.serializeMutation(() => this.registration.reference(configDir))
+  }
+
   addAccount(
     target: ClaudeAccountSelectionTarget = {},
     copyLink = false

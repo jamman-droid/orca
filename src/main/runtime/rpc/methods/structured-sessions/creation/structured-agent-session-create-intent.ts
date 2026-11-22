@@ -1,3 +1,4 @@
+import type { AgentSessionAccountHome } from '../../../../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
 import { computeAgentSessionPayloadFingerprint } from '../../../../../../shared/agent-session/lifecycle/operations/agent-session-mutation-envelope'
 import type { AgentSessionMutationEnvelope } from '../../../../../../shared/agent-session/agent-session-wire'
 import type {
@@ -10,6 +11,7 @@ export function structuredAgentSessionCreateIntentFingerprint(params: {
   envelope: AgentSessionMutationEnvelope
   worktree: string
   agent: string
+  accountHome?: AgentSessionAccountHome
   forkFrom?: { sessionId: string; throughItemId: string }
   resumeFrom?: StructuredAgentSessionResumeSource
   tabId?: string
@@ -23,6 +25,7 @@ export function structuredAgentSessionCreateIntentFingerprint(params: {
     fields: {
       worktree: params.worktree,
       agent: params.agent,
+      ...(params.accountHome ? { accountHome: params.accountHome } : {}),
       resumeFrom: params.resumeFrom,
       forkFrom: params.forkFrom,
       tabId: params.tabId,

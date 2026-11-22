@@ -1,16 +1,20 @@
+import { CLAUDE_STRUCTURED_BASE_OPTIONS, type ClaudeStructuredSdkOptions } from './claude-structured-sdk-options'
+export { CLAUDE_STRUCTURED_BASE_OPTIONS, type ClaudeStructuredSdkOptions } from './claude-structured-sdk-options'
+import { resolveFactoryClaudeLaunch } from './factory-claude-launch'
+import type { FactoryClaudePolicy } from '../../../../shared/agent-session/lifecycle/accounts/factory-claude-policy'
 import { claudeBotSessionOptions } from './claude-bot-session-options'
 import { withBotLaunchToolsEnv } from '../../../bots/bot-launch-tools'
 import type { ClaudeAccountRecipe } from '../../../../shared/agent-session/lifecycle/accounts/agent-session-acquired-account'
-import { prepareClaudeLaunchAccount, withClaudeLaunchAccountPin } from './claude-launch-account'
+import {
+  prepareClaudeLaunchAccount,
+  withClaudeLaunchAccountPin,
+  claudeAccountEnvironmentDeletions
+} from './claude-launch-account'
 import { assertStructuredAgentResolutionCurrent } from '../../../native-chat/agent-launch/structured-agent-command-resolution'
 import { activeProviderContext } from '../../../../shared/agent-session/conversation-context/agent-session-provider-context'
 import { getClaudeProfileRouter } from '../../../claude-accounts/profiles/routing/claude-profile-installed-router'
 import { requireLegacyAgentSessionAccountHome } from '../../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
-import type { Options as ClaudeAgentSdkOptions } from '@anthropic-ai/claude-agent-sdk'
-import {
-  claudeStructuredPermissionOptions,
-  type ClaudePermissionOptions
-} from './claude-structured-permission-options'
+import { claudeStructuredPermissionOptions } from './claude-structured-permission-options'
 import {
   agentSessionProviderHandleKey,
   agentSessionProviderHandleRoot,
@@ -25,7 +29,7 @@ import {
   type ClaudeEnvDeps
 } from './claude-structured-child-env'
 import { withClaudeArtifactDefault } from './claude-artifact-env'
-import { CLAUDE_DEFAULT_SETTING_SOURCES, claudeDiscoveryOptions } from './claude-discovery-options'
+import { claudeDiscoveryOptions } from './claude-discovery-options'
 import { claudeInChromeDefaultArgs } from '../../configuration/claude-in-chrome-default'
 import { claudeConfigDirEnvPatch } from './claude-config-dir-pin'
 import type {
@@ -44,38 +48,8 @@ import {
 
 export const CLAUDE_SESSION_STATE_EVENTS_ENV = 'CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS'
 
-export type ClaudeStructuredSdkOptions = Pick<
-  ClaudeAgentSdkOptions,
-  | 'includePartialMessages'
-  | 'systemPrompt'
-  | 'settingSources'
-  | 'supportedDialogKinds'
-  | 'additionalDirectories'
-  | 'plugins'
-  | 'model'
-  | 'effort'
-  | 'allowDangerouslySkipPermissions'
-  | 'settings'
-  | 'sessionId'
-  | 'resume'
-  | 'resumeSessionAt'
-  | 'forkSession'
-> &
-  ClaudePermissionOptions & { promptSuggestions?: boolean } & Awaited<
-    ReturnType<typeof claudeBotSessionOptions>
-  >
-
-/** Replay acknowledgements require an explicit flag; the SDK supplies the other transport flags. */
-export const CLAUDE_STRUCTURED_BASE_OPTIONS: ClaudeStructuredSdkOptions = {
-  includePartialMessages: true,
-  // Keep the SDK on Claude Code's own system-prompt contract.
-  systemPrompt: { type: 'preset', preset: 'claude_code' },
-  settingSources: [...CLAUDE_DEFAULT_SETTING_SOURCES],
-  supportedDialogKinds: [],
-  extraArgs: { 'replay-user-messages': null }
-}
-
 export type ClaudeStructuredLaunch = {
+  factoryPolicy?: FactoryClaudePolicy
   /** Always Orca's resolved user CLI: the SDK's bundled binaries are excluded from the install. */
   pathToClaudeCodeExecutable: string
   prefixArgs?: readonly string[]
@@ -177,6 +151,20 @@ export function claudeStructuredLaunchPart(
           )
     const continuesChain = head?.nativeId === providerSessionId
     const cwd = await basis.launchDirectory()
+    if (accountHome.factoryPolicy) {
+      if (fork) {
+        throw new Error('Restricted factory sessions cannot fork provider history.')
+      }
+      return resolveFactoryClaudeLaunch({
+        basis,
+        deps,
+        accountHome,
+        cwd,
+        providerSessionId,
+        leafUuid: head && continuesChain ? claudeProviderHandleLeafUuid(head) : null,
+        continuesChain
+      })
+    }
     const envDeps: ClaudeEnvDeps & Pick<ClaudeStructuredLaunchPartDeps, 'resolveAuthPolicy'> = {
       ...(deps.resolveCommand ? { resolveCommand: deps.resolveCommand } : {}),
       resolveEnv: () => basis.launchEnv(),
@@ -191,7 +179,12 @@ export function claudeStructuredLaunchPart(
       command: sources.command,
       prefixArgs: sources.prefixArgs,
       cwd,
-      env: await withClaudeLaunchAccountPin(router, claudeProbeEnv(sources), accountHome.path)
+      env: await withClaudeLaunchAccountPin(
+        router,
+        claudeProbeEnv(sources),
+        accountHome.path,
+        accountHome.factoryAccountId
+      )
     }
     const launchFlags = resolveClaudeLaunchFlags(
       { ...deps, prepareVisuals: basis.visuals },
@@ -245,7 +238,12 @@ export function claudeStructuredLaunchPart(
       sources,
       { runtimeOnPath: false }
     )
-    const accountRecipe = await prepareClaudeLaunchAccount(router, env, accountHome.path)
+    const accountRecipe = await prepareClaudeLaunchAccount(
+      router,
+      env,
+      accountHome.path,
+      accountHome.factoryAccountId
+    )
     const launchHome = accountRecipe.home
     // Read the config of the account directory the spawn pins, as session acquisition does.
     const chromeArgs = await claudeInChromeDefaultArgs(
@@ -302,7 +300,10 @@ export function claudeStructuredLaunchPart(
           : {})
       },
       env,
-      inheritedEnvToDelete: refused.envToDelete,
+      inheritedEnvToDelete: [
+        ...refused.envToDelete,
+        ...claudeAccountEnvironmentDeletions(accountHome.factoryAccountId, accountRecipe, router)
+      ],
       // The agent runtime follows Orca's CLI directory on PATH so another orca cannot shadow it.
       cliRuntimeCommand: command
     }

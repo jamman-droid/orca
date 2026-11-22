@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { isDirectory } from '../claude-profile-homes'
+import { lstat } from 'node:fs/promises'
 // Keep the router setup graph out of scan workers.
 import type { ClaudeProfileRouter } from './claude-profile-router'
 import type { ClaudeWslProfileRouter } from '../wsl/claude-profile-wsl-router'
@@ -46,12 +46,20 @@ export function withClaudeProfileTerminalEnv<Env extends Record<string, string> 
 }
 
 /** The user's CLAUDE_CONFIG_DIR from the login shell, folders Orca saw Claude use, and account homes. */
-export function claudeProfileHistoryDirs(surface: 'projects' | 'transcripts'): string[] {
+export async function claudeProfileHistoryDirs(
+  surface: 'projects' | 'transcripts'
+): Promise<string[]> {
   const homes = [
     installed?.userConfigDir(),
     ...(installedObserved?.list() ?? []),
-    ...(installed?.accountHomes() ?? [])
+    ...((await installed?.accountHomes()) ?? [])
   ].filter((home): home is string => Boolean(home))
-  const dirs = homes.map((home) => join(home, surface)).filter(isDirectory)
+  const candidates = homes.map((home) => join(home, surface))
+  const present = await Promise.all(
+    candidates.map(async (dir) =>
+      (await lstat(dir).catch(() => null))?.isDirectory() ? dir : null
+    )
+  )
+  const dirs = present.filter((dir): dir is string => dir !== null)
   return dirs.filter((dir, index) => dirs.indexOf(dir) === index)
 }

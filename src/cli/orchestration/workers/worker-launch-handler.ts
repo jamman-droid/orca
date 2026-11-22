@@ -5,7 +5,11 @@ import { getOptionalStringFlag, getPresentStringFlag } from '../../arguments/fla
 import { RuntimeClientError } from '../../runtime/connection/types'
 import type { RuntimeClient } from '../../runtime/client'
 import type { RuntimeStatus } from '../../../shared/remote-runtime/session-graph/runtime-session-contracts'
-import { ORCHESTRATION_WORKER_LAUNCH_PREFERENCES_RUNTIME_CAPABILITY } from '../../../shared/orchestration/orchestration-runtime-capabilities'
+import {
+  FACTORY_WORKER_ACCOUNT_RUNTIME_CAPABILITY,
+  FACTORY_RESTRICTED_CLAUDE_RUNTIME_CAPABILITY,
+  ORCHESTRATION_WORKER_LAUNCH_PREFERENCES_RUNTIME_CAPABILITY
+} from '../../../shared/orchestration/orchestration-runtime-capabilities'
 import { callOrchestrationMutation } from '../recovery/mutation-request'
 import { getOptionalPositiveIntegerValueFlag } from '../numeric-flags'
 import { isDevCliInvocation } from '../recovery/runtime-compatibility'
@@ -27,6 +31,26 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     const { flags, client, cwd, json } = ctx
     await refuseAgentServerRoute('worker-start', ctx)
     const terminal = getPresentStringFlag(flags, 'terminal')
+    const factoryMcpConfig = getOptionalStringFlag(flags, 'factory-mcp-config')
+    if (factoryMcpConfig) {
+      const status = await client.call<RuntimeStatus>('status.get')
+      if (!status.result.capabilities?.includes(FACTORY_RESTRICTED_CLAUDE_RUNTIME_CAPABILITY)) {
+        throw new RuntimeClientError(
+          'incompatible_runtime',
+          'This runtime cannot restrict factory Claude workers.'
+        )
+      }
+    }
+    const accountId = getOptionalStringFlag(flags, 'account-id')
+    if (accountId) {
+      const status = await client.call<RuntimeStatus>('status.get')
+      if (!status.result.capabilities?.includes(FACTORY_WORKER_ACCOUNT_RUNTIME_CAPABILITY)) {
+        throw new RuntimeClientError(
+          'incompatible_runtime',
+          'This runtime cannot pin the reserved worker account.'
+        )
+      }
+    }
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
     if (model || effort) {
@@ -76,6 +100,8 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       name: getOptionalStringFlag(flags, 'name'),
       repo: getOptionalStringFlag(flags, 'repo'),
       baseBranch: getOptionalStringFlag(flags, 'base-branch'),
+      accountId,
+      factoryMcpConfig,
       displayName: getOptionalStringFlag(flags, 'display-name'),
       comment: getOptionalStringFlag(flags, 'comment'),
       setup: getOptionalStringFlag(flags, 'setup'),

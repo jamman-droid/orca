@@ -1,3 +1,8 @@
+import { access } from 'node:fs/promises'
+import { join } from 'node:path'
+import { getClaudeProfileRouter } from '../../../claude-accounts/profiles/routing/claude-profile-installed-router'
+import { CodexManagedHomePath } from '../../../codex-accounts/managed-homes/codex-managed-home-path'
+import { resolveFactoryWorkerAccountPin } from './factory-worker-account-pin'
 import type { StructuredAgentId } from '../../../../shared/agent-session/lifecycle/provider-handles/agent-session-provider-handle'
 import { structuredAgentRuntimeMetadata } from '../../agent-session/installation/structured-agent-runtime-metadata'
 import { getProfileUserDataPath } from '../../../orca-profiles/profile-storage-paths'
@@ -8,6 +13,44 @@ import type { AgentSessionAccountHome } from '../../../../shared/agent-session/l
 import type { AgentSessionRecord } from '../../../../shared/agent-session/lifecycle/agent-session-record'
 
 export abstract class OrcaRuntimeWithStructuredSessionAccountHome extends OrcaRuntimeWithStructuredSessionCliWriterHost {
+  async resolveFactoryWorkerAccountHome(
+    agent: string,
+    accountId: string
+  ): Promise<AgentSessionAccountHome> {
+    const settings = this.requireStore().getSettings()
+    if (agent === 'claude') {
+      if (!(settings.claudeManagedAccounts ?? []).some((account) => account.id === accountId)) {
+        throw new Error('The reserved Claude account is not registered on this host.')
+      }
+      const router = getClaudeProfileRouter()
+      if (!router) {
+        throw new Error('Managed Claude account routing is unavailable on this host.')
+      }
+      if (!router.accountLogin(accountId)) {
+        throw new Error(
+          'The reserved Claude account needs its own sign-in; system fallback is disabled.'
+        )
+      }
+      const path = await router.prepareAccount(accountId)
+      return { variable: 'CLAUDE_CONFIG_DIR', path, factoryAccountId: accountId }
+    }
+    if (agent === 'codex') {
+      const account = (settings.codexManagedAccounts ?? []).find(
+        (candidate) => candidate.id === accountId
+      )
+      if (!account) {
+        throw new Error('The reserved Codex account is not registered on this host.')
+      }
+      const path = new CodexManagedHomePath().assertHostOwnership(
+        account.managedHomePath,
+        accountId
+      )
+      await access(join(path, 'auth.json'))
+      return { variable: 'CODEX_HOME', path, factoryAccountId: accountId }
+    }
+    throw new Error('--account-id currently supports managed Claude and Codex accounts only.')
+  }
+
   /** Resolve account home through this host's agent registration; null means unregistered and create refuses. */
   protected structuredAgentAccountHomeResolver(
     agent: StructuredAgentId,
@@ -61,6 +104,12 @@ export abstract class OrcaRuntimeWithStructuredSessionAccountHome extends OrcaRu
     record: AgentSessionRecord,
     purpose: 'read' | 'identity' = 'read'
   ): Promise<AgentSessionAccountHome | null> {
+    const pinned = await resolveFactoryWorkerAccountPin(record.accountHome, (accountId) =>
+      this.resolveFactoryWorkerAccountHome(record.provider, accountId)
+    )
+    if (pinned) {
+      return pinned
+    }
     const { provider, location } = record
     if (!structuredAgentRuntimeMetadata(provider)?.launchFollowsSelection?.()) {
       return null
@@ -75,6 +124,12 @@ export abstract class OrcaRuntimeWithStructuredSessionAccountHome extends OrcaRu
     record: AgentSessionRecord,
     launchDirectory: string
   ): Promise<AgentSessionAccountHome | null> {
+    const pinned = await resolveFactoryWorkerAccountPin(record.accountHome, (accountId) =>
+      this.resolveFactoryWorkerAccountHome(record.provider, accountId)
+    )
+    if (pinned) {
+      return pinned
+    }
     const { provider, location } = record
     if (!structuredAgentRuntimeMetadata(provider)?.launchFollowsSelection?.()) {
       return null

@@ -51,10 +51,15 @@ export async function claudeStateFileAsync(
   configDir: string | undefined,
   userHome = homedir()
 ): Promise<string> {
-  const legacy = claudeStateFile(configDir, userHome, () => true)
-  return (await stat(legacy).catch(() => null))
-    ? legacy
-    : claudeStateFile(configDir, userHome, () => false)
+  const resolve = (exists: (path: string) => boolean) =>
+    resolveClaudeGlobalConfigFile({
+      env: { CLAUDE_CONFIG_DIR: configDir },
+      homeDir: userHome,
+      style: process.platform === 'win32' ? 'win32' : 'posix',
+      exists
+    })
+  const legacy = resolve(() => true)
+  return (await stat(legacy).catch(() => null)) ? legacy : resolve(() => false)
 }
 
 // Cache large, frequently rewritten state files across account-list refreshes.
@@ -168,7 +173,7 @@ export async function removeClaudeAccountFolder(
     runtime: 'host'
   })
   if (process.platform === 'darwin') {
-    for (const spelling of claudeConfigDirSpellings(home, homedir())) {
+    for (const spelling of await claudeConfigDirSpellings(home, homedir())) {
       // Each delete removes only one Keychain item for this service.
       for (let attempt = 0; attempt < 4; attempt += 1) {
         const deleted = await execSecurityCommand([

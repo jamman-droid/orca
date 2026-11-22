@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { access } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { spawnWorkerThread } from '../../../worker-threads/worker-thread-spawn'
 import {
@@ -15,24 +15,36 @@ export type ClaudeProfileSetupJob = {
   userConfigDir: string | undefined
   hooks: boolean
   claudeVersion: string | undefined
+  managedClaudeCommand?: string
 }
 
 const WORKER_FILENAME = 'claude-profile-setup-worker-entry.js'
 
-function workerPath(): string {
+async function workerPath(): Promise<string> {
   const entry = resolveWorkerThreadEntryPath(currentWorkerEntryLayout(__dirname), WORKER_FILENAME)
   // Rollup can place this launcher in a shared chunk beside the worker entries.
-  return [entry, join(dirname(entry), '..', WORKER_FILENAME)].find(existsSync) ?? entry
+  for (const candidate of [entry, join(dirname(entry), '..', WORKER_FILENAME)]) {
+    if (
+      await access(candidate).then(
+        () => true,
+        () => false
+      )
+    ) {
+      return candidate
+    }
+  }
+  return entry
 }
 
 /** Keep large history merges and synchronous filesystem calls off main. */
-export function runClaudeProfileSetupInWorker(
+export async function runClaudeProfileSetupInWorker(
   job: ClaudeProfileSetupJob,
-  path = workerPath(),
+  path?: string,
   timeoutMs = 60_000
 ): Promise<ClaudeProfileSetupReport> {
+  const entry = path ?? (await workerPath())
   return new Promise((resolve, reject) => {
-    const worker = spawnWorkerThread(path, { name: 'orca-claude-profile-setup', workerData: job })
+    const worker = spawnWorkerThread(entry, { name: 'orca-claude-profile-setup', workerData: job })
     // Bound the wait for launches blocked on this setup.
     const timer = setTimeout(() => {
       reject(new Error('Claude account setup timed out'))

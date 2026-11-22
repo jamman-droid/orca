@@ -1,3 +1,4 @@
+import type { AgentSessionAccountHome } from '../../../../shared/agent-session/lifecycle/accounts/agent-session-account-home'
 import {
   agentSessionRefusalError,
   isAgentSessionRefusalError
@@ -31,6 +32,7 @@ import {
 } from './structured-agent-session-adoption-transcript'
 
 export type StructuredAgentSessionCreateIntentInput = {
+  accountHome?: AgentSessionAccountHome
   envelope: { sessionId: string; clientOperationId: string }
   worktree: string
   agent: StructuredAgentId

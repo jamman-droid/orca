@@ -1,32 +1,41 @@
+import { claudeProfileTerminalEnvironment } from './claude-profile-terminal-environment'
+import {
+  assertReferencedClaudeLogin,
+  validateReferencedClaudeHome,
+  requireReferencedClaudeCredentials
+} from '../claude-referenced-profile'
+import {
+  describeRoutedClaudeProfile,
+  isReferencedClaudeDirectory,
+  routedClaudeProfileHomes
+} from './claude-profile-routed-descriptor'
+import { prepareManagedClaudeProfile } from './claude-managed-profile-preparation'
 import { claudeAccountUsagePreparation } from './claude-account-usage-preparation'
 import { claudeProfileSelectionHomes } from './claude-profile-selection-homes'
-import { prepareClaudeProfileForLaunch } from './claude-profile-launch-preparation'
-import { getClaudeAgentViewService } from '../../../claude/agent-view/agent-view-service'
+import { claudeSystemDefaultRunsAnotherAccount } from './claude-system-default-account-comparison'
+import {
+  claudeRuntimePreparation,
+  prepareClaudeProfileForLaunch
+} from './claude-profile-launch-preparation'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { isAgentStatusHooksEnabledForAgent } from '../../../../shared/agent-hook-listener/configuration/agent-status-hooks-setting'
 import {
   CLAUDE_INJECTED_CONFIG_DIR_ENV,
   CLAUDE_PROFILE_POINTER_ENV,
-  CLAUDE_PROFILE_SETUP_FAILED_MESSAGE,
-  CLAUDE_USER_CONFIG_DIR_ENV
+  CLAUDE_PROFILE_SETUP_FAILED_MESSAGE
 } from '../../../../shared/agent-accounts/claude/claude-profile-routing'
 import { claudeProfileMissing } from './claude-profile-launch-errors'
 import type { GlobalSettings } from '../../../../shared/settings/global-settings-types'
 import type { ClaudeManagedAccount } from '../../../../shared/agent-accounts/managed-account-types'
-import { probeRecentClaudeCliVersion } from '../../../claude/cli-capabilities/claude-hook-event-versions'
 import { writeFileAtomically } from '../../../filesystem/atomic-file-publication'
-import { resolveClaudeCommand } from '../../../codex-cli/command'
 import {
-  describeClaudeProfile,
   type ClaudeProfileDescriptor,
   readUserClaudeConfigDir,
-  readUserClaudeConfigDirAsSet,
   resolveClaudeDefaultHome
 } from '../claude-profile-paths'
 import type { ClaudeProfileSetupReport } from '../setup/claude-profile-setup'
-import { runClaudeProfileSetupInWorker } from '../setup/claude-profile-setup-worker'
+import type { runClaudeProfileSetupInWorker } from '../setup/claude-profile-setup-worker'
 import type { ClaudeEnvPatch } from '../../runtime-auth/environment'
 import type { ClaudeRuntimeAuthPreparation } from '../../runtime-auth/runtime-auth-types'
 import {
@@ -34,8 +43,7 @@ import {
   getSelectedClaudeAccountIdForTarget,
   type ClaudeAccountSelectionTarget
 } from '../../selection/runtime-selection'
-import { wslClaudeProfilePointer } from '../wsl/claude-profile-wsl-paths'
-import { isDirectory, listClaudeProfileHomes } from '../claude-profile-homes'
+import { isDirectory } from '../claude-profile-homes'
 import {
   claudeStateFile,
   readClaudeFolderLogin,
@@ -104,7 +112,10 @@ export class ClaudeProfileRouter {
   }
 
   accountLogin(accountId: string): ClaudeFolderLogin | null {
-    return readClaudeFolderLogin(claudeStateFile(this.accountHome(accountId), this.userHome))
+    const login = readClaudeFolderLogin(claudeStateFile(this.accountHome(accountId), this.userHome))
+    const account = this.savedAccount(accountId)
+    assertReferencedClaudeLogin(account, login)
+    return login
   }
 
   systemDefaultLogin(maxAgeMs = 0): ClaudeFolderLogin | null {
@@ -117,6 +128,9 @@ export class ClaudeProfileRouter {
       return false
     }
     const saved = this.savedAccount(accountId)
+    if (saved?.profileOwnership === 'reference') {
+      return false
+    }
     const systemDefault = this.systemDefaultLogin()
     return Boolean(saved && systemDefault && isSameClaudeLogin(saved, systemDefault))
   }
@@ -146,7 +160,7 @@ export class ClaudeProfileRouter {
     }
     // Create missing or covered folders without a login so they can sign in separately.
     const profile = this.selectedProfile()
-    if (profile) {
+    if (profile && this.savedAccount(profile.accountId)?.profileOwnership !== 'reference') {
       this.setUpInBackground(profile)
     }
   }
@@ -184,6 +198,10 @@ export class ClaudeProfileRouter {
     if (!profile) {
       return this.preparation()
     }
+    if (this.savedAccount(profile.accountId)?.profileOwnership === 'reference') {
+      await this.prepareAccount(profile.accountId)
+      return this.preparation()
+    }
     await prepareClaudeProfileForLaunch(
       profile,
       (value) => this.setUp(value),
@@ -198,6 +216,11 @@ export class ClaudeProfileRouter {
 
   async prepareAccount(accountId: string): Promise<string> {
     const profile = this.describe(accountId)
+    if (this.savedAccount(accountId)?.profileOwnership === 'reference') {
+      await this.validateReferenceHome(profile.home)
+      await requireReferencedClaudeCredentials(profile.home)
+      return profile.home
+    }
     const report = await this.setUp(profile).catch(() => null)
     if (report?.outcome !== 'prepared') {
       throw new Error(CLAUDE_PROFILE_SETUP_FAILED_MESSAGE)
@@ -207,6 +230,9 @@ export class ClaudeProfileRouter {
 
   /** Wait for setup before deleting so it cannot recreate the folder. */
   async removeAccount(accountId: string): Promise<void> {
+    if (this.savedAccount(accountId)?.profileOwnership === 'reference') {
+      return
+    }
     await this.setups.get(accountId)?.catch(() => {})
     await removeClaudeAccountFolder(this.args.dataRoot, accountId)
   }
@@ -221,14 +247,14 @@ export class ClaudeProfileRouter {
   }
 
   private describe(accountId: string): ClaudeProfileDescriptor {
-    return describeClaudeProfile(this.args.dataRoot, accountId, {
-      executionHostId: 'local',
-      runtime: 'host'
-    })
+    return describeRoutedClaudeProfile(this.args.dataRoot, accountId, this.savedAccount(accountId))
   }
 
   /** Reuse in-flight setup per account. */
   private setUp(profile: ClaudeProfileDescriptor): Promise<ClaudeProfileSetupReport> {
+    if (this.savedAccount(profile.accountId)?.profileOwnership === 'reference') {
+      return Promise.reject(new Error('Referenced Claude profiles cannot be provisioned by Orca.'))
+    }
     const running = this.setups.get(profile.accountId)
     if (running) {
       return running
@@ -240,23 +266,14 @@ export class ClaudeProfileRouter {
 
   private async runSetup(profile: ClaudeProfileDescriptor): Promise<ClaudeProfileSetupReport> {
     await this.envReady
-    const hooks = isAgentStatusHooksEnabledForAgent(this.args.getSettings(), 'claude')
-    const claudeVersion = hooks ? await probeRecentClaudeCliVersion(resolveClaudeCommand()) : null
-    const report = await (this.args.runSetup ?? runClaudeProfileSetupInWorker)({
+    return prepareManagedClaudeProfile({
       dataRoot: this.args.dataRoot,
       profile,
       userHome: this.userHome,
       userConfigDir: this.userConfigDir(),
-      hooks,
-      claudeVersion: claudeVersion ?? undefined
+      settings: this.args.getSettings(),
+      runSetup: this.args.runSetup
     })
-    if (report.outcome === 'prepared') {
-      await getClaudeAgentViewService(this.args.dataRoot).prepareProfile(profile.home)
-    }
-    if (report.outcome === 'refused' || report.warnings.length > 0) {
-      console.warn('[claude-profile] Account setup was incomplete:', report)
-    }
-    return report
   }
 
   launchEnv(): ClaudeEnvPatch {
@@ -270,60 +287,35 @@ export class ClaudeProfileRouter {
 
   /** A broken account selection must not prevent opening a terminal. */
   terminalEnv(target?: ClaudeAccountSelectionTarget): ClaudeEnvPatch {
-    // Pass the pointer without waiting on the guest.
-    if (target?.runtime === 'wsl') {
-      return { [CLAUDE_PROFILE_POINTER_ENV]: `~/${wslClaudeProfilePointer(this.args.dataRoot)}` }
-    }
-    // Save the user's value so the shell function can restore it on System default.
-    const userConfigDir = readUserClaudeConfigDirAsSet(this.env)
-    const base: ClaudeEnvPatch = {
-      [CLAUDE_PROFILE_POINTER_ENV]: this.pointerPath,
-      ...(userConfigDir ? { [CLAUDE_USER_CONFIG_DIR_ENV]: userConfigDir } : {})
-    }
-    // Defer routing until the shell env resolves; the shell function will read the updated pointer.
-    if (!this.envResolved) {
-      return base
-    }
-    try {
-      this.writePointer()
-      // Refresh without delaying terminal creation.
-      const profile = this.routedProfile()
-      if (profile) {
-        this.setUpInBackground(profile)
+    return claudeProfileTerminalEnvironment({
+      target,
+      dataRoot: this.args.dataRoot,
+      pointerPath: this.pointerPath,
+      env: this.env,
+      envResolved: this.envResolved,
+      prepare: () => {
+        this.writePointer()
+        const profile = this.routedProfile()
+        if (profile && this.savedAccount(profile.accountId)?.profileOwnership !== 'reference') {
+          this.setUpInBackground(profile)
+        }
+        return this.launchEnv()
       }
-      return { ...base, ...this.launchEnv() }
-    } catch {
-      return base
-    }
+    })
   }
 
   preparation(): ClaudeRuntimeAuthPreparation {
-    const profile = this.routedProfile()
-    const home = this.routedHome()
-    return {
-      configDir: home ?? this.systemDefaultHome(),
-      runtime: 'host',
-      wslDistro: null,
-      wslLinuxConfigDir: null,
-      envPatch: this.launchEnv(),
-      provenance: home ? `profile:${profile?.accountId}` : 'system',
-      ...(home && profile
-        ? { readingAccount: { accountId: profile.accountId, runtime: 'host', wslDistro: null } }
-        : {})
-    }
+    return claudeRuntimePreparation({
+      profile: this.routedProfile(),
+      home: this.routedHome(),
+      defaultHome: this.systemDefaultHome(),
+      envPatch: this.launchEnv()
+    })
   }
 
   /** Compare pre-routing terminals against the selection; null means no account is selected. */
   systemDefaultRunsAnotherAccount(): boolean | null {
-    const profile = this.selectedProfile()
-    if (!profile) {
-      return null
-    }
-    const selected =
-      this.accountLogin(profile.accountId) ??
-      findClaudeAccount(this.args.getSettings(), profile.accountId)
-    const systemDefault = this.systemDefaultLogin(5_000)
-    return !selected || !systemDefault || !isSameClaudeLogin(selected, systemDefault)
+    return claudeSystemDefaultRunsAnotherAccount(this)
   }
 
   routesToAccount(): boolean {
@@ -339,8 +331,19 @@ export class ClaudeProfileRouter {
     return claudeProfileSelectionHomes(this, this.args.getSettings(), this.envReady, launchEnv)
   }
 
-  /** Every account folder on this host, selected or not. */
-  accountHomes(): string[] {
-    return listClaudeProfileHomes(this.args.dataRoot)
+  isReferencedHome(home: string | undefined): Promise<boolean> {
+    return isReferencedClaudeDirectory(this.args.getSettings().claudeManagedAccounts, home)
+  }
+
+  validateReferenceHome(home: string): Promise<void> {
+    return validateReferencedClaudeHome(this.args.getSettings().claudeManagedAccounts, home)
+  }
+
+  /** Every valid account folder on this host, selected or not. */
+  accountHomes(): Promise<string[]> {
+    return routedClaudeProfileHomes(
+      this.args.dataRoot,
+      this.args.getSettings().claudeManagedAccounts
+    )
   }
 }

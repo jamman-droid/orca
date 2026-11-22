@@ -1,3 +1,5 @@
+import { accountHoldsNoLogin } from './claude-account-login-presence'
+import { assertReferencedClaudeLogin } from '../profiles/claude-referenced-profile'
 import type {
   ClaudeManagedAccount,
   ClaudeManagedAccountSummary,
@@ -11,8 +13,6 @@ import {
 } from '../../../shared/agent-accounts/managed-account-display-names'
 import type { RateLimitService } from '../../rate-limits/service/rate-limit-service'
 import { claudeStateFile, readClaudeFolderLogin } from '../sign-in/claude-account-folder'
-import { readClaudeOAuthCredentials } from '../../rate-limits/providers/claude/claude-oauth-credentials'
-import { resolveLoginShellEnvironment } from '../../startup/shell-environment/login-shell-environment'
 import { savedWslClaudeAccountHome } from '../profiles/wsl/claude-profile-wsl-paths'
 import type { ClaudeRuntimeAuthService } from '../runtime-auth-service'
 import {
@@ -119,6 +119,7 @@ export class ClaudeAccountSelection {
     }
     const home = this.runtimeAuth.router.accountHome(account.id)
     const login = readClaudeFolderLogin(claudeStateFile(home))
+    assertReferencedClaudeLogin(account, login)
     if (login) {
       return {
         ...summary,
@@ -318,17 +319,4 @@ export class ClaudeAccountSelection {
       })
     }
   }
-}
-
-/** The read usage already makes for this account; an unreadable store is no answer. */
-async function accountHoldsNoLogin(home: string): Promise<boolean> {
-  // Claude then keeps every login elsewhere, so an empty account folder proves nothing.
-  if ((await resolveLoginShellEnvironment()).CLAUDE_SECURESTORAGE_CONFIG_DIR !== undefined) {
-    return false
-  }
-  const login = await readClaudeOAuthCredentials({
-    credentialsFileConfigDir: home,
-    keychainConfigDir: home
-  })
-  return !login.token && !login.hasRefreshableCredentials && !login.unavailable
 }

@@ -272,6 +272,10 @@ export class RuntimeAccountController {
     return this.requireServices().claudeAccounts.removeAccount(accountId)
   }
 
+  referenceClaudeProfile(configDir: string): Promise<ClaudeRateLimitAccountsState> {
+    return this.requireServices().claudeAccounts.referenceAccount(configDir)
+  }
+
   beginClaudeSignIn(request: ClaudeSignInRequest): Promise<ClaudeAccountSignIn> {
     return this.requireServices().claudeAccounts.beginSignIn(request)
   }

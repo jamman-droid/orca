@@ -48,7 +48,7 @@ export async function claudeLaunchResumesTranscript(input: {
     return false
   }
   const otherHomes = router
-    ? [input.recordHome, ...router.accountHomes(), router.systemDefaultHome()]
+    ? [input.recordHome, ...(await router.accountHomes()), router.systemDefaultHome()]
     : []
   for (const home of otherHomes.filter((home) => home !== claudeConfigDir)) {
     if (await hasTranscript({ providerSessionId, claudeConfigDir: home, cwd })) {

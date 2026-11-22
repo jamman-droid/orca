@@ -195,10 +195,13 @@ const ACCOUNT_METHOD_DEFINITIONS = [
     name: 'accounts.addClaudeFromConfigDir',
     permission: 'accounts-admin',
     params: AddClaudeFromConfigDirParams,
-    handler: async () => {
-      throw new Error(
-        'Update the Orca CLI to add accounts. Importing Claude logins is no longer supported.'
-      )
+    handler: async (params, { runtime, clientKind }) => {
+      if (clientKind !== undefined || params.runtime === 'wsl') {
+        throw new Error(
+          'Referencing Claude profiles is available only on their native host runtime.'
+        )
+      }
+      return runtime.referenceClaudeProfile(params.configDir)
     }
   }),
   defineMethod({
